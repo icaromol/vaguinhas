@@ -746,7 +746,10 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 elif 'school' in label or 'university' in label or 'college' in label or 'institution' in label or 'universidade' in label or 'instituição' in label:
                     answer = ''  # let AI handle if required, or skip if optional
                 elif any(loc_word in label for loc_word in ['location', 'city', 'state', 'country', 'cidade', 'estado', 'país', 'localização']):
-                    if 'country' in label or 'país' in label:
+                    if ('country' in label or 'país' in label) and ('city' in label or 'cidade' in label or '/' in label):
+                        # Combined format: "country/city" or "country - city" → "Brazil - Belo Horizonte"
+                        answer = f"{country} - {current_city}" if current_city else country
+                    elif 'country' in label or 'país' in label:
                         answer = country
                     elif 'state' in label or 'estado' in label:
                         answer = state
@@ -967,8 +970,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 if 'experience' in label or 'years' in label or 'anos de experiência' in label or 'anos de exp' in label: answer = years_of_experience
                 elif 'phone' in label or 'mobile' in label or 'telefone' in label or 'celular' in label: answer = phone_number
                 elif 'street' in label or 'rua' in label or 'endereço' in label: answer = street
-                elif 'city' in label or 'location' in label or 'address' in label or 'cidade' in label or 'localização' in label or 'onde você mora' in label:
-                    answer = current_city if current_city else work_location
+                elif ('city' in label or 'location' in label or 'address' in label or 'cidade' in label or 'localização' in label or 'onde você mora' in label):
+                    if ('country' in label or 'país' in label) and ('city' in label or 'cidade' in label or '/' in label):
+                        answer = f"{country} - {current_city}" if current_city else country
+                    else:
+                        answer = current_city if current_city else work_location
                     do_actions = True
                 elif 'signature' in label or 'assinatura' in label: answer = full_name
                 elif 'name' in label or 'nome' in label:
