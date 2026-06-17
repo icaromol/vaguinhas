@@ -569,28 +569,74 @@ def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
 # Function to answer common questions for Easy Apply
 def answer_common_questions(label: str, answer: str) -> str:
     if 'sponsorship' in label or 'visa' in label: answer = require_visa
-    # PT-BR mappings
-    elif 'deficiência' in label or 'pcd' in label or 'pessoa com defici' in label: answer = disability_status
+    # Diversity / identity
+    elif 'pronoun' in label: answer = 'He / Him'
+    elif 'gender identity' in label or 'identidade de gênero' in label: answer = gender
+    elif 'gender' in label or 'sex' in label or 'gênero' in label or 'genero' in label: answer = gender
+    elif 'sexual orientation' in label or 'orientação sexual' in label: answer = 'I prefer not to disclose'
+    elif 'race' in label or 'skin color' in label or 'cor' in label or 'raça' in label or 'etnia' in label or 'ethnicity' in label: answer = ethnicity
+    # Disability
+    elif 'disability' in label or 'deficiência' in label or 'pcd' in label or 'pessoa com defici' in label: answer = disability_status
+    # Veteran
     elif 'veteran' in label or 'veterano' in label: answer = veteran_status
-    elif 'indicad' in label or 'referr' in label or 'referred' in label: answer = 'Não'
-    elif 'como você teve conhecimento' in label or 'como soube' in label or 'how did you hear' in label: answer = 'LinkedIn'
+    # Company-specific: ABInBev / Ambev
+    elif 'abinbev' in label or 'ambev' in label:
+        if 'currently' in label and 'employee' in label: answer = 'No'
+        elif 'ever been' in label and 'employee' in label: answer = 'No'
+        elif 'relative' in label or 'parente' in label or 'familiar' in label: answer = 'No'
+        elif 'employee' in label and 'id' in label: answer = ''
+        elif 'relationship' in label: answer = ''
+    # How did you hear
+    elif 'how did you hear' in label or 'como você teve conhecimento' in label or 'como soube' in label: answer = 'LinkedIn'
+    elif 'hear about us' in label or 'como ficou sabendo' in label: answer = 'LinkedIn company page'
+    elif ('event' in label or 'other' in label) and ('specify' in label or 'especif' in label): answer = ''
+    # Known company
     elif 'conhecia' in label and ('empresa' in label or 'company' in label or 'flash' in label or 'marca' in label): answer = 'Não conhecia'
-    elif 'inglês' in label or 'english' in label or 'idioma' in label or 'language' in label:
-        answer = 'Professional'
+    # Referred
+    elif 'indicad' in label or 'referr' in label or 'referred' in label: answer = 'No'
+    # Languages
+    elif 'inglês' in label or 'english' in label or 'idioma' in label or 'language' in label: answer = 'Professional'
     elif 'espanhol' in label or 'spanish' in label: answer = 'Avançado'
+    # AI experience
     elif 'ai' in label and ('experience' in label or 'knowledge' in label or 'nivel' in label or 'level' in label or 'skill' in label):
         answer = 'Advanced'
-    elif 'saas' in label and ('experience' in label or 'product' in label):
-        answer = 'Yes'
+    # SaaS experience
+    elif 'saas' in label and ('experience' in label or 'product' in label): answer = 'Yes'
+    # PM years
     elif ('product manager' in label or 'pm' in label) and ('year' in label or 'experience' in label or 'senior' in label):
         answer = years_of_experience
+    # Contact / future
     elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
+    # Salary
     elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
         answer = str(desired_salary)
+    # Employer / location
     elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label: answer = recent_employer
     elif 'current location' in label or 'localização atual' in label or 'onde você mora' in label: answer = current_city
-    elif 'adaptação' in label or 'acessibilidade' in label or 'accommodation' in label: answer = 'Não'
+    elif 'adaptação' in label or 'acessibilidade' in label or 'accommodation' in label: answer = 'No'
     return answer
+
+
+def is_required_field(Question: WebElement) -> bool:
+    '''
+    Checks if a form field is marked as required by the LinkedIn form.
+    Looks for aria-required, required attribute, or asterisk in label.
+    '''
+    try:
+        # Check aria-required on any input/select/textarea inside the question
+        for tag in ['input', 'select', 'textarea', 'fieldset']:
+            el = try_xp(Question, f".//{tag}", False)
+            if el:
+                if el.get_attribute("aria-required") == "true": return True
+                if el.get_attribute("required") is not None: return True
+        # Check for * in label text (LinkedIn sometimes uses this)
+        label = try_xp(Question, ".//label | .//legend | .//span[@data-test-form-builder-radio-button-form-component__title]", False)
+        if label and '*' in label.text: return True
+        # Check for required indicator span
+        if try_xp(Question, ".//*[contains(@class,'required') or contains(@class,'mandatory')]", False): return True
+    except Exception:
+        pass
+    return False
 
 
 # Function to answer the questions for Easy Apply
@@ -604,6 +650,8 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
     # all_questions = all_questions + all_list_questions + all_single_line_questions
 
     for Question in all_questions:
+        required = is_required_field(Question)
+
         # Check if it's a select Question
         select = try_xp(Question, ".//select", False)
         if select:
@@ -675,7 +723,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 foundOption = True
                                 break
                     if not foundOption:
-                        if use_AI and aiClient:
+                        if required and use_AI and aiClient:
                             try:
                                 if ai_provider.lower() == "openai":
                                     ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
@@ -696,10 +744,13 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                             except Exception as e:
                                 print_lg("Failed to get AI answer for select question!", e)
                         if not foundOption:
-                            print_lg(f'Failed to find an option with text "{answer}" for question labelled "{label_org}", answering randomly!')
-                            select.select_by_index(randint(1, len(select.options)-1))
-                            answer = select.first_selected_option.text
-                            randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
+                            if required:
+                                print_lg(f'Failed to find an option for required question "{label_org}", answering randomly!')
+                                select.select_by_index(randint(1, len(select.options)-1))
+                                answer = select.first_selected_option.text
+                                randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
+                            else:
+                                print_lg(f'Skipping optional select question "{label_org}" — no match found.')
             questions_list.add((f'{label_org} [ {options} ]', answer, "select", prev_answer))
             continue
         
@@ -754,7 +805,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     #             answer = f'Decline ({phrase})'
                     #             ele = foundOption
                     #             break
-                    if not foundOption and use_AI and aiClient:
+                    if not foundOption and required and use_AI and aiClient:
                         try:
                             raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
                             if ai_provider.lower() == "openai":
@@ -775,8 +826,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                         break
                         except Exception as e:
                             print_lg("Failed to get AI answer for radio question!", e)
-                    actions.move_to_element(ele).click().perform()
-                    if not foundOption: randomly_answered_questions.add((f'{label_org} ]',"radio"))
+                    if foundOption or required:
+                        actions.move_to_element(ele).click().perform()
+                        if not foundOption: randomly_answered_questions.add((f'{label_org} ]',"radio"))
+                    else:
+                        print_lg(f'Skipping optional radio question "{label_org}" — no match found.')
             else: answer = prev_answer
             questions_list.add((label_org+" ]", answer, "radio", prev_answer))
             continue
@@ -836,7 +890,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 else: answer = answer_common_questions(label, answer)
                 ##> ------ Yang Li : MARKYangL - Feature ------
                 if answer == "":
-                    if use_AI and aiClient:
+                    if required and use_AI and aiClient:
                         try:
                             if ai_provider.lower() == "openai":
                                 answer = ai_answer_question(aiClient, label_org, question_type="text", job_description=job_description, user_information_all=get_user_information())
@@ -848,7 +902,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 randomly_answered_questions.add((label_org, "text"))
                                 answer = years_of_experience
                             if answer and isinstance(answer, str) and len(answer) > 0:
-                                print_lg(f'AI Answered received for question "{label_org}" \nhere is answer: "{answer}"')
+                                print_lg(f'AI answered text "{label_org}": "{answer}"')
                             else:
                                 randomly_answered_questions.add((label_org, "text"))
                                 answer = years_of_experience
@@ -856,12 +910,15 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                             print_lg("Failed to get AI answer!", e)
                             randomly_answered_questions.add((label_org, "text"))
                             answer = years_of_experience
-                    else:
+                    elif required:
                         randomly_answered_questions.add((label_org, "text"))
                         answer = years_of_experience
+                    else:
+                        print_lg(f'Skipping optional text question "{label_org}" — no answer mapped.')
                 ##<
-                text.clear()
-                text.send_keys(answer)
+                if answer:
+                    text.clear()
+                    text.send_keys(answer)
                 if do_actions:
                     sleep(2)
                     actions.send_keys(Keys.ARROW_DOWN)
@@ -882,7 +939,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 elif 'cover' in label: answer = get_cover_letter_text()
                 if answer == "":
                 ##> ------ Yang Li : MARKYangL - Feature ------
-                    if use_AI and aiClient:
+                    if required and use_AI and aiClient:
                         try:
                             if ai_provider.lower() == "openai":
                                 answer = ai_answer_question(aiClient, label_org, question_type="textarea", job_description=job_description, user_information_all=get_user_information())
@@ -894,7 +951,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 randomly_answered_questions.add((label_org, "textarea"))
                                 answer = ""
                             if answer and isinstance(answer, str) and len(answer) > 0:
-                                print_lg(f'AI Answered received for question "{label_org}" \nhere is answer: "{answer}"')
+                                print_lg(f'AI answered textarea "{label_org}": "{answer}"')
                             else:
                                 randomly_answered_questions.add((label_org, "textarea"))
                                 answer = ""
@@ -902,10 +959,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                             print_lg("Failed to get AI answer!", e)
                             randomly_answered_questions.add((label_org, "textarea"))
                             answer = ""
-                    else:
-                        randomly_answered_questions.add((label_org, "textarea"))
-            text_area.clear()
-            text_area.send_keys(answer)
+                    elif not required:
+                        print_lg(f'Skipping optional textarea "{label_org}" — no answer mapped.')
+            if answer:
+                text_area.clear()
+                text_area.send_keys(answer)
             if do_actions:
                     sleep(2)
                     actions.send_keys(Keys.ARROW_DOWN)
