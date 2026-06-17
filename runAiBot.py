@@ -685,11 +685,11 @@ def answer_common_questions(label: str, answer: str) -> str:
     # Team / dev manager years
     elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
         answer = years_of_experience
-    # PO / PM in banking / financial systems experience
-    elif ('product owner' in label or 'atuou' in label or 'atuado' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
+    # PO / PM in banking / financial / payments systems experience
+    elif ('product owner' in label or 'po' in label or 'atuou' in label or 'atuado' in label or 'conhecimento' in label or 'experiência' in label or 'experience' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label or 'pagamento' in label or 'payment' in label or 'meios de pagamento' in label):
         answer = 'Sim'
     # Product Owner experience (generic)
-    elif ('product owner' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
+    elif ('product owner' in label or 'po' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
         answer = 'Sim'
     # Hybrid / presential availability
     elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label or 'aceita' in label or 'aceite' in label or 'modelo' in label):
