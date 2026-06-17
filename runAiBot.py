@@ -531,8 +531,14 @@ def answer_common_questions(label: str, answer: str) -> str:
     elif 'como você teve conhecimento' in label or 'como soube' in label or 'how did you hear' in label: answer = 'LinkedIn'
     elif 'conhecia' in label and ('empresa' in label or 'company' in label or 'flash' in label or 'marca' in label): answer = 'Não conhecia'
     elif 'inglês' in label or 'english' in label or 'idioma' in label or 'language' in label:
-        answer = 'Fluent'
+        answer = 'Professional'
     elif 'espanhol' in label or 'spanish' in label: answer = 'Avançado'
+    elif 'ai' in label and ('experience' in label or 'knowledge' in label or 'nivel' in label or 'level' in label or 'skill' in label):
+        answer = 'Advanced'
+    elif 'saas' in label and ('experience' in label or 'product' in label):
+        answer = 'Yes'
+    elif ('product manager' in label or 'pm' in label) and ('year' in label or 'experience' in label or 'senior' in label):
+        answer = years_of_experience
     elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
     elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
         answer = str(desired_salary)
@@ -624,11 +630,31 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 foundOption = True
                                 break
                     if not foundOption:
-                        #TODO: Use AI to answer the question need to be implemented logic to extract the options for the question
-                        print_lg(f'Failed to find an option with text "{answer}" for question labelled "{label_org}", answering randomly!')
-                        select.select_by_index(randint(1, len(select.options)-1))
-                        answer = select.first_selected_option.text
-                        randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
+                        if use_AI and aiClient:
+                            try:
+                                if ai_provider.lower() == "openai":
+                                    ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=user_information_all)
+                                elif ai_provider.lower() == "deepseek":
+                                    ai_ans = deepseek_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                elif ai_provider.lower() == "gemini":
+                                    ai_ans = gemini_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                else:
+                                    ai_ans = None
+                                if ai_ans:
+                                    for opt in optionsText:
+                                        if str(ai_ans).lower() in opt.lower() or opt.lower() in str(ai_ans).lower():
+                                            select.select_by_visible_text(opt)
+                                            answer = opt
+                                            foundOption = True
+                                            print_lg(f'AI answered select "{label_org}" with: "{ai_ans}"')
+                                            break
+                            except Exception as e:
+                                print_lg("Failed to get AI answer for select question!", e)
+                        if not foundOption:
+                            print_lg(f'Failed to find an option with text "{answer}" for question labelled "{label_org}", answering randomly!')
+                            select.select_by_index(randint(1, len(select.options)-1))
+                            answer = select.first_selected_option.text
+                            randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
             questions_list.add((f'{label_org} [ {options} ]', answer, "select", prev_answer))
             continue
         
@@ -683,6 +709,27 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     #             answer = f'Decline ({phrase})'
                     #             ele = foundOption
                     #             break
+                    if not foundOption and use_AI and aiClient:
+                        try:
+                            raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
+                            if ai_provider.lower() == "openai":
+                                ai_ans = ai_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, user_information_all=user_information_all)
+                            elif ai_provider.lower() == "deepseek":
+                                ai_ans = deepseek_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                            elif ai_provider.lower() == "gemini":
+                                ai_ans = gemini_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                            else:
+                                ai_ans = None
+                            if ai_ans:
+                                for i, option_label in enumerate(options_labels):
+                                    if str(ai_ans).lower() in option_label.lower() or option_label.lower() in str(ai_ans).lower():
+                                        ele = options[i]
+                                        answer = options_labels[i]
+                                        foundOption = True
+                                        print_lg(f'AI answered radio "{label_org}" with: "{ai_ans}"')
+                                        break
+                        except Exception as e:
+                            print_lg("Failed to get AI answer for radio question!", e)
                     actions.move_to_element(ele).click().perform()
                     if not foundOption: randomly_answered_questions.add((f'{label_org} ]',"radio"))
             else: answer = prev_answer
