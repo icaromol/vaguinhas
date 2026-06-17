@@ -1488,11 +1488,19 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                     # Re-fetch modal to avoid StaleElementReferenceException
                                     try: modal = find_by_class(driver, "jobs-easy-apply-modal")
                                     except: pass
-                                    # Try Review button first (PT-BR + EN), then Next/Continue
-                                    review_xp = './/button[.//*[contains(normalize-space(.),"Review") or contains(normalize-space(.),"Revisar") or contains(normalize-space(.),"Revisão") or contains(normalize-space(.),"Rever")]]'
-                                    next_xp   = './/button[.//*[contains(normalize-space(.),"Next") or contains(normalize-space(.),"Próximo") or contains(normalize-space(.),"Avançar") or contains(normalize-space(.),"Continue") or contains(normalize-space(.),"Continuar") or contains(normalize-space(.),"Prosseguir")]]'
+                                    # Find Next or Review button — try multiple strategies
                                     next_button = None
-                                    for xp in (review_xp, next_xp):
+                                    _nav_xpaths = [
+                                        # By span/child text (EN + PT)
+                                        './/button[.//*[contains(translate(normalize-space(.),"revisar revisão rever","Revisar Revisão Rever"),"Revis") or contains(normalize-space(.),"Review") or contains(normalize-space(.),"Rever")]]',
+                                        './/button[.//*[contains(normalize-space(.),"Next") or contains(normalize-space(.),"Próximo") or contains(normalize-space(.),"Proximo") or contains(normalize-space(.),"Avançar") or contains(normalize-space(.),"Avancar") or contains(normalize-space(.),"Continue") or contains(normalize-space(.),"Continuar") or contains(normalize-space(.),"Prosseguir")]]',
+                                        # By button own text
+                                        './/button[contains(normalize-space(.),"Revisar") or contains(normalize-space(.),"Review")]',
+                                        './/button[contains(normalize-space(.),"Next") or contains(normalize-space(.),"Próximo") or contains(normalize-space(.),"Avançar") or contains(normalize-space(.),"Continuar")]',
+                                        # By aria-label
+                                        './/button[contains(@aria-label,"Review") or contains(@aria-label,"Revisar") or contains(@aria-label,"Next") or contains(@aria-label,"Próximo") or contains(@aria-label,"Avançar")]',
+                                    ]
+                                    for xp in _nav_xpaths:
                                         try:
                                             next_button = modal.find_element(By.XPATH, xp)
                                             break
@@ -1507,6 +1515,12 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                             try: driver.execute_script("arguments[0].click();", next_button)
                                             except: break
                                     else:
+                                        # Log all visible buttons for diagnosis
+                                        try:
+                                            all_btns = modal.find_elements(By.TAG_NAME, "button")
+                                            btn_texts = [b.text.strip() for b in all_btns if b.text.strip()]
+                                            print_lg(f"[NAV] Botões visíveis no modal: {btn_texts}")
+                                        except: pass
                                         print_lg("[NAV] Nenhum botão Next/Review encontrado — encerrando loop.")
                                         break
                                     buffer(click_gap)
