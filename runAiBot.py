@@ -595,41 +595,57 @@ def answer_common_questions(label: str, answer: str) -> str:
     if 'sponsorship' in label or 'visa' in label: answer = require_visa
     # Diversity / identity
     elif 'pronoun' in label: answer = 'He / Him'
-    elif 'gender identity' in label or 'identidade de gênero' in label: answer = gender
+    elif 'gender identity' in label or 'identidade de gênero' in label or 'identidade de genero' in label: answer = gender
+    elif 'lgbtq' in label or 'lgbtqia' in label or 'comunidade lgb' in label: answer = 'No'
     elif 'gender' in label or 'sex' in label or 'gênero' in label or 'genero' in label: answer = gender
     elif 'sexual orientation' in label or 'orientação sexual' in label: answer = 'I prefer not to disclose'
-    elif 'race' in label or 'skin color' in label or 'cor' in label or 'raça' in label or 'etnia' in label or 'ethnicity' in label: answer = ethnicity
-    # Disability
-    elif 'disability' in label or 'deficiência' in label or 'pcd' in label or 'pessoa com defici' in label: answer = disability_status
+    elif 'race' in label or 'skin color' in label or 'cor' in label or 'raça' in label or 'raca' in label or 'etnia' in label or 'ethnicity' in label or 'self-declar' in label or 'autodeclar' in label: answer = ethnicity
+    # Disability — must check "type of disability" BEFORE generic disability check
+    elif ('type' in label or 'tipo' in label or 'qual' in label or 'what type' in label) and ('disab' in label or 'deficiên' in label or 'deficien' in label):
+        answer = '' if disability_status.lower() in ('no', 'não', 'nao') else 'Prefer not to say'
+    elif 'disability' in label or 'deficiência' in label or 'deficiencia' in label or 'pcd' in label or 'pessoa com defici' in label or 'person with disab' in label: answer = disability_status
+    # Accessibility needs
+    elif 'accessibility' in label or 'acessibilidade' in label or 'adaptação' in label or 'accommodation' in label:
+        answer = 'No' if 'require' in label or 'need' in label or 'precisa' in label or 'necessita' in label else 'No'
     # Veteran
     elif 'veteran' in label or 'veterano' in label: answer = veteran_status
     # Relocation — always No
     elif 'reloc' in label or 'relocate' in label or 'relocação' in label or 'mudança de cidade' in label or 'mudança de país' in label:
         answer = 'No'
+    # On-site at specific city (Campinas, São Paulo etc) — always No (we don't want to relocate)
+    elif 'on-site' in label and ('campinas' in label or 'são paulo' in label or 'sao paulo' in label or 'rio' in label or 'every day' in label or 'todos os dias' in label):
+        answer = 'No'
+    elif ('presencial' in label or 'on-site' in label) and ('todos os dias' in label or 'every day' in label or 'diariamente' in label):
+        answer = 'No'
     # Previous interview at this company
     elif 'interview' in label and ('before' in label or 'previously' in label or 'past' in label or 'prior' in label or 'undergone' in label or 'process' in label):
         answer = 'No'
-    # Personal/family relationship with employee at this company
-    elif 'personal relationship' in label or 'know' in label and 'employee' in label:
+    # Relatives / close friends / acquaintances at company — always No
+    elif ('relative' in label or 'familiar' in label or 'parente' in label or 'friend' in label or 'acquaintance' in label or 'conhecido' in label) and ('work' in label or 'employee' in label or 'company' in label or 'ci&t' in label or 'trabalha' in label or 'colega' in label):
+        answer = 'No'
+    # Personal relationship with employee — always No
+    elif 'personal relationship' in label or ('know' in label and 'employee' in label):
         answer = 'No'
     elif 'relative' in label and ('employee' in label or 'company' in label or 'work' in label):
         answer = 'No'
-    # "If yes, please indicate how you know the employee" / "Employee name" — leave blank (we answered No above)
+    # Follow-up "if yes" fields — always blank (since we answered No above)
+    elif ('if' in label and 'yes' in label) and ('name' in label or 'share' in label or 'indicate' in label or 'specify' in label or 'who' in label):
+        answer = ''
     elif ('indicate' in label or 'specify' in label or 'especif' in label) and ('know' in label or 'employee' in label or 'relationship' in label):
         answer = ''
-    elif "employee's name" in label or 'nome do funcionário' in label or 'nome do colaborador' in label:
+    elif "employee's name" in label or 'nome do funcionário' in label or 'nome do colaborador' in label or "name(s)" in label:
         answer = ''
     # Deloitte / auditor association — always No
     elif 'deloitte' in label or ('auditor' in label and ('independent' in label or 'associated' in label)):
         answer = 'No'
     # Booking Holdings group (Kayak, Priceline, Booking.com, etc.)
-    elif 'booking holdings' in label or ('booking' in label and 'group' in label) or 'kayak' in label or 'priceline' in label or ('openTable' in label) or 'opentable' in label:
+    elif 'booking holdings' in label or ('booking' in label and 'group' in label) or 'kayak' in label or 'priceline' in label or 'opentable' in label:
         answer = 'No'
     # SMS / text updates consent — Yes is fine
     elif ('sms' in label or ('text' in label and 'update' in label)) and ('allow' in label or 'consent' in label or 'agree' in label):
         answer = 'Yes'
-    # Data privacy / personal data consent — Yes
-    elif ('personal data' in label or 'data from your application' in label or 'dados pessoais' in label) and ('agree' in label or 'allow' in label or 'consent' in label):
+    # Data / affirmative actions / diversity consent — Yes (optional disclosure is ok)
+    elif ('personal data' in label or 'data from your application' in label or 'dados pessoais' in label or 'affirmative' in label or 'ações afirmativas' in label) and ('agree' in label or 'allow' in label or 'consent' in label or 'comfortable' in label or 'confortável' in label):
         answer = 'Yes'
     # Company-specific: ABInBev / Ambev
     elif 'abinbev' in label or 'ambev' in label:
@@ -639,14 +655,19 @@ def answer_common_questions(label: str, answer: str) -> str:
         elif 'employee' in label and 'id' in label: answer = ''
         elif 'relationship' in label: answer = ''
     # How did you hear
-    elif 'how did you hear' in label or 'como você teve conhecimento' in label or 'como soube' in label: answer = 'LinkedIn'
+    elif 'how did you hear' in label or 'como você teve conhecimento' in label or 'como soube' in label or 'hear about' in label and 'opening' in label: answer = 'LinkedIn'
     elif 'hear about us' in label or 'como ficou sabendo' in label: answer = 'LinkedIn company page'
     elif ('event' in label or 'other' in label) and ('specify' in label or 'especif' in label): answer = ''
     # Known company
     elif 'conhecia' in label and ('empresa' in label or 'company' in label or 'flash' in label or 'marca' in label): answer = 'Não conhecia'
     # Referred
     elif 'indicad' in label or 'referr' in label or 'referred' in label: answer = 'No'
-    # Languages
+    # Language confidence / comfort level
+    elif ('confidence' in label or 'comfortable' in label or 'comfort' in label or 'level' in label or 'confiança' in label) and ('english' in label or 'inglês' in label or '[en]' in label):
+        answer = 'Advanced'
+    elif ('confidence' in label or 'comfortable' in label or 'comfort' in label or 'level' in label) and ('spanish' in label or 'espanhol' in label or '[es]' in label):
+        answer = 'Advanced'
+    # Languages (general proficiency)
     elif 'inglês' in label or 'english' in label or 'idioma' in label or 'language' in label: answer = 'Professional'
     elif 'espanhol' in label or 'spanish' in label: answer = 'Avançado'
     # AI experience
@@ -655,7 +676,7 @@ def answer_common_questions(label: str, answer: str) -> str:
     # SaaS experience
     elif 'saas' in label and ('experience' in label or 'product' in label): answer = 'Yes'
     # Rede IP / networking experience
-    elif 'rede ip' in label or 'rede ip' in label or ('rede' in label and 'ip' in label): answer = 'Sim'
+    elif ('rede' in label and 'ip' in label): answer = 'Sim'
     # PM / product manager years
     elif ('gestor' in label or 'gestora' in label or 'product manager' in label or 'gerente de produto' in label) and ('ano' in label or 'year' in label or 'experiência' in label or 'experience' in label):
         answer = years_of_experience
@@ -665,27 +686,29 @@ def answer_common_questions(label: str, answer: str) -> str:
     elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
         answer = years_of_experience
     # PO / PM in banking / financial systems experience
-    elif ('product owner' in label or 'po' == label.strip() or 'atuou' in label or 'atuado' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
+    elif ('product owner' in label or 'atuou' in label or 'atuado' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
         answer = 'Sim'
     # Product Owner experience (generic)
     elif ('product owner' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
         answer = 'Sim'
-    # Hybrid / presential availability — broad match: "aceita", "aceite", "disponível", "disponib", "atuar", "trabalhar"
-    elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label or 'on-site' in label or 'onsite' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label or 'aceita' in label or 'aceite' in label or 'modelo' in label):
+    # Hybrid / presential availability
+    elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label or 'aceita' in label or 'aceite' in label or 'modelo' in label):
         answer = 'Sim'
     # Contact / future
     elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
-    # Salary — CLT vs PJ
-    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa salarial' in label) and ('clt' in label or 'carteira' in label or 'efetiv' in label):
+    # Salary — CLT vs PJ (check CLT first, then PJ, then generic)
+    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa' in label) and ('clt' in label or 'carteira' in label or 'efetiv' in label or 'vagas clt' in label):
         answer = desired_salary_clt
-    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa salarial' in label) and ('pj' in label or 'pessoa jurídica' in label or 'pessoa juridica' in label or 'freelan' in label):
+    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa' in label) and ('pj' in label or 'pessoa jurídica' in label or 'pessoa juridica' in label or 'freelan' in label):
         answer = str(desired_salary)
     elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
         answer = str(desired_salary)
+    # Current salary (optional sharing) — answer 0
+    elif ('atual' in label or 'current' in label or 'último' in label or 'ultimo' in label or 'last' in label) and ('salário' in label or 'salary' in label or 'remuneração' in label or 'compensation' in label):
+        answer = str(current_ctc)
     # Employer / location
     elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label: answer = recent_employer
-    elif 'current location' in label or 'localização atual' in label or 'onde você mora' in label: answer = current_city
-    elif 'adaptação' in label or 'acessibilidade' in label or 'accommodation' in label: answer = 'No'
+    elif 'current location' in label or 'localização atual' in label or 'onde você mora' in label or 'que cidade reside' in label or 'cidade que reside' in label: answer = current_city
     return answer
 
 
