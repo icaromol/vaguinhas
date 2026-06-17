@@ -682,9 +682,18 @@ def answer_common_questions(label: str, answer: str) -> str:
         answer = years_of_experience
     elif ('pm' in label) and ('year' in label or 'experience' in label or 'senior' in label):
         answer = years_of_experience
+    # Team management / leadership experience — Yes
+    elif ('lider' in label or 'líder' in label or 'liderando' in label or 'liderança' in label or 'leadership' in label or 'leading' in label or 'lead' in label) and ('equipe' in label or 'team' in label or 'squad' in label or 'experiência' in label or 'experience' in label or 'tem' in label or 'possui' in label):
+        answer = 'Yes'
     # Team / dev manager years
     elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
         answer = years_of_experience
+    # Higher education completed — Yes
+    elif ('ensino superior' in label or 'higher education' in label or 'graduação' in label or 'graduado' in label or 'college degree' in label or 'bachelor' in label) and ('completo' in label or 'complete' in label or 'possui' in label or 'have' in label or 'certificado' in label or 'certificate' in label or 'comprovante' in label):
+        answer = 'Yes'
+    # Credit/crédito domain years — 0 (not our domain)
+    elif ('crédito' in label or 'credito' in label or 'credit' in label) and ('ano' in label or 'year' in label or 'quanto' in label or 'how many' in label or 'experiência' in label or 'experience' in label or 'atua' in label or 'atuar' in label):
+        answer = '0'
     # PO in payments — No (no specific payments domain experience)
     elif ('pagamento' in label or 'payment' in label or 'meios de pagamento' in label):
         answer = 'Não'
@@ -694,6 +703,9 @@ def answer_common_questions(label: str, answer: str) -> str:
     # Product Owner experience (generic)
     elif ('product owner' in label or 'po' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
         answer = 'Sim'
+    # Availability (office, hybrid, on-site, city office days) — always Yes
+    elif ('disponib' in label or 'availab' in label) and ('escritório' in label or 'office' in label or 'rj' in label or 'rio de janeiro' in label or 'presencial' in label or 'sp' in label or 'são paulo' in label or 'bh' in label or 'belo horizonte' in label or 'paulista' in label or 'consolação' in label):
+        answer = 'Yes'
     # Hybrid / presential availability
     elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label or 'aceita' in label or 'aceite' in label or 'modelo' in label):
         answer = 'Sim'
@@ -707,7 +719,7 @@ def answer_common_questions(label: str, answer: str) -> str:
     elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
         answer = str(desired_salary)
     # Current salary (optional sharing) — answer 0
-    elif ('atual' in label or 'current' in label or 'último' in label or 'ultimo' in label or 'last' in label) and ('salário' in label or 'salary' in label or 'remuneração' in label or 'compensation' in label):
+    elif ('atual' in label or 'current' in label or 'último' in label or 'ultimo' in label or 'last' in label or 'informe' in label) and ('salário' in label or 'salary' in label or 'remuneração' in label or 'compensation' in label):
         answer = str(current_ctc)
     # Employer / location
     elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label: answer = recent_employer
