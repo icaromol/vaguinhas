@@ -507,14 +507,20 @@ def get_cover_letter_path() -> str:
 def get_cover_letter_text() -> str:
     '''Returns the cover letter text for the current job language.'''
     if job_language == "en":
-        return cover_letter_en if cover_letter_en else cover_letter
+        result = cover_letter_en if cover_letter_en else cover_letter
+        print_lg(f"[get_cover_letter_text] job_language=en, using {'cover_letter_en' if cover_letter_en else 'cover_letter (fallback)'}")
+        return result
+    print_lg("[get_cover_letter_text] job_language=pt, using cover_letter")
     return cover_letter
 
 
 def get_linkedin_summary_text() -> str:
     '''Returns the LinkedIn summary for the current job language.'''
     if job_language == "en":
-        return linkedin_summary_en if linkedin_summary_en else linkedin_summary
+        result = linkedin_summary_en if linkedin_summary_en else linkedin_summary
+        print_lg(f"[get_linkedin_summary_text] job_language=en, using {'linkedin_summary_en' if linkedin_summary_en else 'linkedin_summary (fallback)'}")
+        return result
+    print_lg("[get_linkedin_summary_text] job_language=pt, using linkedin_summary")
     return linkedin_summary
 
 
@@ -959,14 +965,18 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         # Check if it's a textarea question
         text_area = try_xp(Question, ".//textarea", False)
         if text_area:
+            do_actions = False  # reset — do_actions from text block must not leak here
             label = try_xp(Question, ".//label[@for]", False)
             label_org = label.text if label else "Unknown"
             label = label_org.lower()
             answer = ""
             prev_answer = text_area.get_attribute("value")
+            print_lg(f'[TEXTAREA] Label: "{label_org}" | job_language: {job_language}')
             if not prev_answer or overwrite_previous_answers:
-                if 'summary' in label: answer = get_linkedin_summary_text()
-                elif 'cover' in label: answer = get_cover_letter_text()
+                if 'summary' in label or 'sobre você' in label or 'perfil' in label: answer = get_linkedin_summary_text()
+                elif 'cover' in label or 'apresentação' in label or 'motivação' in label or 'carta' in label: answer = get_cover_letter_text()
+                if answer:
+                    print_lg(f'[TEXTAREA] Mapped answer for "{label_org}" (lang={job_language}): {answer[:80]}...')
                 if answer == "":
                 ##> ------ Yang Li : MARKYangL - Feature ------
                     if required and use_AI and aiClient:

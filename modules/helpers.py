@@ -255,16 +255,39 @@ def convert_to_lakhs(value: str) -> str:
 
 def detect_language(text: str) -> str:
     '''
-    Detects whether text is primarily English or Portuguese.
+    Detects whether a job description is primarily English or Portuguese.
+    Uses exclusive high-signal words per language (avoids ambiguous short words).
     Returns "en" or "pt".
     '''
     if not text or text == "Unknown":
         return "pt"
     text_lower = text.lower()
-    en_words = ["the", "and", "for", "you", "with", "are", "this", "that", "have", "will", "your", "from", "they", "experience", "team", "work", "role", "skills", "job", "our", "we", "be", "to", "of", "in", "a", "is", "it", "at", "as", "on", "we're", "you'll", "we'll"]
-    pt_words = ["de", "do", "da", "em", "para", "que", "com", "uma", "você", "nosso", "nossa", "ser", "ter", "pelo", "pela", "suas", "seus", "como", "mais", "por", "os", "as", "um", "ao", "na", "no", "se", "também", "experiência", "equipe"]
-    en_count = sum(1 for w in en_words if f" {w} " in f" {text_lower} ")
-    pt_count = sum(1 for w in pt_words if f" {w} " in f" {text_lower} ")
+    words = set(text_lower.split())
+
+    # Words that exist almost exclusively in English job descriptions
+    en_exclusive = [
+        "the", "and", "you'll", "we're", "our", "will", "your", "you",
+        "responsibilities", "requirements", "qualifications", "benefits",
+        "you'll", "we'll", "they", "their", "hiring", "apply", "candidate",
+        "team", "role", "skills", "bonus", "salary", "job", "position",
+        "working", "looking", "join", "strong", "background", "preferred",
+        "nice", "what", "we", "with", "have", "are", "this", "that",
+    ]
+    # Words that exist almost exclusively in Portuguese job descriptions
+    pt_exclusive = [
+        "você", "nosso", "nossa", "nossos", "nossas", "para", "também",
+        "experiência", "equipe", "cargo", "empresa", "vaga", "requisitos",
+        "benefícios", "responsabilidades", "candidato", "candidata",
+        "atuação", "formação", "diferencial", "sobre", "estamos",
+        "buscamos", "procuramos", "contratação", "regime", "modelo",
+        "remuneração", "salário", "híbrido", "presencial", "remoto",
+        "será", "serão", "irá", "irão", "suas", "seus", "pelo", "pela",
+    ]
+
+    en_count = sum(1 for w in en_exclusive if w in words)
+    pt_count = sum(1 for w in pt_exclusive if w in words)
+
+    print_lg(f"Language detection — EN signals: {en_count}, PT signals: {pt_count}")
     return "en" if en_count > pt_count else "pt"
 
 
