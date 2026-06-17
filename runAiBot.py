@@ -788,11 +788,13 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     answer = notice_period  # "0" means immediate
                 elif 'grau de contato' in label or 'conhece' in label or 'relationship' in label:
                     answer = 'Não'
-                # Education fields — degree type and field of study (let AI handle or leave blank, not "Yes")
-                elif 'degree' in label or 'field of study' in label or 'major' in label or 'course' in label or 'grau' in label or 'área de estudo' in label:
-                    answer = ''  # let AI handle if required, or skip if optional
+                # Education fields — skip entirely, never random-fill
                 elif 'school' in label or 'university' in label or 'college' in label or 'institution' in label or 'universidade' in label or 'instituição' in label:
-                    answer = ''  # let AI handle if required, or skip if optional
+                    questions_list.add((f'{label_org} [ {options} ]', prev_answer, "select", prev_answer))
+                    continue
+                elif 'degree' in label or 'field of study' in label or 'major' in label or 'course' in label or 'grau' in label or 'área de estudo' in label:
+                    questions_list.add((f'{label_org} [ {options} ]', prev_answer, "select", prev_answer))
+                    continue
                 elif any(loc_word in label for loc_word in ['location', 'city', 'state', 'country', 'cidade', 'estado', 'país', 'localização']):
                     if ('country' in label or 'país' in label) and ('city' in label or 'cidade' in label or '/' in label):
                         # Combined format: "country/city" or "country - city" → "Brazil - Belo Horizonte"
@@ -962,8 +964,13 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     raw_options = [m[0] for m in options_meta]
 
                     for phrase in possible_answer_phrases:
+                        phrase_l = phrase.lower()
                         for opt_text, opt_val, opt_id, opt_entry in options_meta:
-                            if phrase.lower() in opt_entry.lower() or opt_text.lower() == phrase.lower():
+                            opt_text_l = opt_text.lower()
+                            opt_val_l = opt_val.lower()
+                            # Exact match on text or value, or phrase contained in text/value
+                            if (opt_text_l == phrase_l or opt_val_l == phrase_l
+                                    or phrase_l in opt_text_l or opt_text_l in phrase_l):
                                 matched_id = opt_id
                                 matched_answer = opt_text
                                 break
