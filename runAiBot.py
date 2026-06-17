@@ -656,15 +656,20 @@ def is_required_field(Question: WebElement) -> bool:
 
 # Function to answer the questions for Easy Apply
 def answer_questions(modal: WebElement, questions_list: set, work_location: str, job_description: str | None = None ) -> set:
-    # Get all questions from the page
-     
-    all_questions = modal.find_elements(By.XPATH, ".//div[@data-test-form-element]")
-    # all_questions = modal.find_elements(By.CLASS_NAME, "jobs-easy-apply-form-element")
-    # all_list_questions = modal.find_elements(By.XPATH, ".//div[@data-test-text-entity-list-form-component]")
-    # all_single_line_questions = modal.find_elements(By.XPATH, ".//div[@data-test-single-line-text-form-component]")
-    # all_questions = all_questions + all_list_questions + all_single_line_questions
+    questions_xpath = ".//div[@data-test-form-element]"
+    all_questions = modal.find_elements(By.XPATH, questions_xpath)
+    total = len(all_questions)
 
-    for Question in all_questions:
+    for idx in range(total):
+        # Re-fetch the modal and the specific question by index to avoid stale references
+        try:
+            modal = find_by_class(driver, "jobs-easy-apply-modal")
+            all_questions = modal.find_elements(By.XPATH, questions_xpath)
+            if idx >= len(all_questions):
+                break
+            Question = all_questions[idx]
+        except Exception:
+            break
         required = is_required_field(Question)
 
         # Check if it's a select Question
