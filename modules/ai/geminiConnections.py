@@ -30,9 +30,9 @@ def gemini_create_client():
         print_lg("Configuring Gemini client...")
         if not llm_api_key or "YOUR_API_KEY" in llm_api_key:
             raise ValueError("Gemini API key is not set. Please set it in `config/secrets.py`.")
-        
+
         genai.configure(api_key=llm_api_key)
-        
+
         models = gemini_get_models_list()
         if "error" in models:
             raise ValueError(models[1])
@@ -40,12 +40,12 @@ def gemini_create_client():
              raise ValueError(f"Model `{llm_model}` is not found or not available for content generation!")
 
         model = genai.GenerativeModel(llm_model)
-        
+
         print_lg("---- SUCCESSFULLY CONFIGURED GEMINI CLIENT! ----")
         print_lg(f"Using Model: {llm_model}")
         print_lg("Check './config/secrets.py' for more details.\n")
         print_lg("---------------------------------------------")
-        
+
         return model
     except Exception as e:
         error_message = f"Error occurred while configuring Gemini client. Make sure your API key and model name are correct."
@@ -91,7 +91,7 @@ def gemini_completion(model, prompt: str, is_json: bool = False) -> dict | str:
 
         print_lg(f"Calling Gemini API for completion...")
         response = model.generate_content(prompt, safety_settings=safety_settings)
-        
+
         # The response might be blocked. Check for that.
         if not response.parts:
              raise ValueError("The response from the Gemini API was empty. This might be due to the safety filters blocking the prompt or the response. The prompt was:\n" + prompt)
@@ -104,9 +104,9 @@ def gemini_completion(model, prompt: str, is_json: bool = False) -> dict | str:
                 result = result[7:]
             if result.endswith("```"):
                 result = result[:-3]
-            
+
             return convert_to_json(result)
-        
+
         return result
     except Exception as e:
         critical_error_log(f"Error occurred while getting Gemini completion!", e)
@@ -129,8 +129,8 @@ def gemini_extract_skills(model, job_description: str) -> list[str] | None:
 
 def gemini_answer_question(
     model,
-    question: str, options: list[str] | None = None, 
-    question_type: Literal['text', 'textarea', 'single_select', 'multiple_select'] = 'text', 
+    question: str, options: list[str] | None = None,
+    question_type: Literal['text', 'textarea', 'single_select', 'multiple_select'] = 'text',
     job_description: str = None, about_company: str = None, user_information_all: str = None
 ) -> str:
     """
@@ -148,10 +148,10 @@ def gemini_answer_question(
                 prompt += "\n\nPlease select exactly ONE option from the list above."
             else:
                 prompt += "\n\nYou may select MULTIPLE options from the list above if appropriate."
-        
+
         if job_description:
             prompt += f"\n\nJOB DESCRIPTION:\n{job_description}"
-        
+
         if about_company:
             prompt += f"\n\nABOUT COMPANY:\n{about_company}"
 
