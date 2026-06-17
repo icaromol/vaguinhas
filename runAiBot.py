@@ -664,8 +664,14 @@ def answer_common_questions(label: str, answer: str) -> str:
     # Team / dev manager years
     elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
         answer = years_of_experience
-    # Hybrid / presential availability
-    elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label or 'on-site' in label or 'onsite' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label):
+    # PO / PM in banking / financial systems experience
+    elif ('product owner' in label or 'po' == label.strip() or 'atuou' in label or 'atuado' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
+        answer = 'Sim'
+    # Product Owner experience (generic)
+    elif ('product owner' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
+        answer = 'Sim'
+    # Hybrid / presential availability — broad match: "aceita", "aceite", "disponível", "disponib", "atuar", "trabalhar"
+    elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label or 'on-site' in label or 'onsite' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label or 'aceita' in label or 'aceite' in label or 'modelo' in label):
         answer = 'Sim'
     # Contact / future
     elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
@@ -789,14 +795,15 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
 
                 # Fuzzy match — inclui equivalentes PT para Yes/No
                 def _select_fuzzy(ans: str) -> tuple:
+                    ans_lower = ans.lower()
                     if ans == 'Decline':
                         phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want", "Prefiro não"]
-                    elif 'yes' in ans.lower():
+                    elif 'yes' in ans_lower or ans_lower in ('sim', 'yes', 'true', '1'):
                         phrases = ["Yes", "Sim", "Agree", "I do", "I have", "Possuo", "Tenho"]
-                    elif 'no' in ans.lower() or 'não' in ans.lower():
+                    elif 'no' in ans_lower or 'não' in ans_lower or ans_lower in ('não', 'nao', 'no', 'false', '0'):
                         phrases = ["No", "Não", "Nao", "Disagree", "I don't", "I do not", "Não possuo", "Não tenho"]
                     else:
-                        phrases = [ans, ans.lower(), ans.upper(), ''.join(c for c in ans if c.isalnum())]
+                        phrases = [ans, ans_lower, ans.upper(), ''.join(c for c in ans if c.isalnum())]
                     for phrase in phrases:
                         for option in optionsText:
                             if phrase.lower() in option.lower() or option.lower() in phrase.lower():
@@ -916,13 +923,21 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 pass
 
                 if not clicked:
-                    possible_answer_phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want"] if answer == 'Decline' else [answer]
+                    ans_lower = answer.lower()
+                    if answer == 'Decline':
+                        possible_answer_phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want", "Prefiro não"]
+                    elif 'yes' in ans_lower or ans_lower in ('sim', 'true', '1'):
+                        possible_answer_phrases = ["Yes", "Sim", "Agree", "I do", "I have", "Possuo", "Tenho"]
+                    elif 'no' in ans_lower or 'não' in ans_lower or ans_lower in ('nao', 'false', '0'):
+                        possible_answer_phrases = ["No", "Não", "Nao", "Disagree", "I don't", "I do not", "Não possuo", "Não tenho"]
+                    else:
+                        possible_answer_phrases = [answer]
                     matched_id = None
                     raw_options = [m[0] for m in options_meta]
 
                     for phrase in possible_answer_phrases:
                         for opt_text, opt_val, opt_id, opt_entry in options_meta:
-                            if phrase.lower() in opt_entry.lower():
+                            if phrase.lower() in opt_entry.lower() or opt_text.lower() == phrase.lower():
                                 matched_id = opt_id
                                 matched_answer = opt_text
                                 break
