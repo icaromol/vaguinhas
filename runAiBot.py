@@ -671,7 +671,6 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 options = "".join([f' "{option}",' for option in optionsText])
             prev_answer = selected_option
             if overwrite_previous_answers or selected_option == "Select an option":
-                ##> ------ WINDY_WINDWARD Email:karthik.sarode23@gmail.com - Added fuzzy logic to answer location based questions ------
                 if 'email' in label or 'phone' in label or 'telefone' in label:
                     answer = prev_answer
                 elif 'gender' in label or 'sex' in label or 'gênero' in label or 'genero' in label:
@@ -693,64 +692,65 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                         answer = work_location
                 else:
                     answer = answer_common_questions(label, answer)
-                try: 
-                    select.select_by_visible_text(answer)
-                except NoSuchElementException as e:
-                    # Define similar phrases for common answers
-                    possible_answer_phrases = []
-                    if answer == 'Decline':
-                        possible_answer_phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want"]
-                    elif 'yes' in answer.lower():
-                        possible_answer_phrases = ["Yes", "Agree", "I do", "I have"]
-                    elif 'no' in answer.lower():
-                        possible_answer_phrases = ["No", "Disagree", "I don't", "I do not"]
+
+                # Fuzzy match — inclui equivalentes PT para Yes/No
+                def _select_fuzzy(ans: str) -> tuple:
+                    if ans == 'Decline':
+                        phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want", "Prefiro não"]
+                    elif 'yes' in ans.lower():
+                        phrases = ["Yes", "Sim", "Agree", "I do", "I have", "Possuo", "Tenho"]
+                    elif 'no' in ans.lower() or 'não' in ans.lower():
+                        phrases = ["No", "Não", "Nao", "Disagree", "I don't", "I do not", "Não possuo", "Não tenho"]
                     else:
-                        # Try partial matching for any answer
-                        possible_answer_phrases = [answer]
-                        # Add lowercase and uppercase variants
-                        possible_answer_phrases.append(answer.lower())
-                        possible_answer_phrases.append(answer.upper())
-                        # Try without special characters
-                        possible_answer_phrases.append(''.join(c for c in answer if c.isalnum()))
-                    ##<
-                    foundOption = False
-                    for phrase in possible_answer_phrases:
+                        phrases = [ans, ans.lower(), ans.upper(), ''.join(c for c in ans if c.isalnum())]
+                    for phrase in phrases:
                         for option in optionsText:
-                            # Check if phrase is in option or option is in phrase (bidirectional matching)
                             if phrase.lower() in option.lower() or option.lower() in phrase.lower():
                                 select.select_by_visible_text(option)
-                                answer = option
-                                foundOption = True
-                                break
-                    if not foundOption:
-                        if required and use_AI and aiClient:
-                            try:
-                                if ai_provider.lower() == "openai":
-                                    ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
-                                elif ai_provider.lower() == "deepseek":
-                                    ai_ans = deepseek_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
-                                elif ai_provider.lower() == "gemini":
-                                    ai_ans = gemini_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
-                                else:
-                                    ai_ans = None
-                                if ai_ans:
-                                    for opt in optionsText:
-                                        if str(ai_ans).lower() in opt.lower() or opt.lower() in str(ai_ans).lower():
-                                            select.select_by_visible_text(opt)
-                                            answer = opt
-                                            foundOption = True
-                                            print_lg(f'AI answered select "{label_org}" with: "{ai_ans}"')
-                                            break
-                            except Exception as e:
-                                print_lg("Failed to get AI answer for select question!", e)
-                        if not foundOption:
-                            if required:
-                                print_lg(f'Failed to find an option for required question "{label_org}", answering randomly!')
-                                select.select_by_index(randint(1, len(select.options)-1))
-                                answer = select.first_selected_option.text
-                                randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
+                                return True, option
+                    return False, ans
+
+                foundOption = False
+                try:
+                    select.select_by_visible_text(answer)
+                    foundOption = True
+                except NoSuchElementException:
+                    foundOption, answer = _select_fuzzy(answer)
+
+                if not foundOption:
+                    print_lg(f'[SELECT FALHOU] Pergunta: "{label_org}"')
+                    print_lg(f'  Tentou responder: "{answer}"')
+                    print_lg(f'  Opções disponíveis: {optionsText}')
+                    if required and use_AI and aiClient:
+                        try:
+                            if ai_provider.lower() == "openai":
+                                ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
+                            elif ai_provider.lower() == "deepseek":
+                                ai_ans = deepseek_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
+                            elif ai_provider.lower() == "gemini":
+                                ai_ans = gemini_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             else:
-                                print_lg(f'Skipping optional select question "{label_org}" — no match found.')
+                                ai_ans = None
+                            if ai_ans:
+                                for opt in optionsText:
+                                    if str(ai_ans).lower() in opt.lower() or opt.lower() in str(ai_ans).lower():
+                                        select.select_by_visible_text(opt)
+                                        answer = opt
+                                        foundOption = True
+                                        print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{opt}"')
+                                        break
+                            if not foundOption:
+                                print_lg(f'  IA não encontrou match. Resposta da IA: "{ai_ans}"')
+                        except Exception as e:
+                            print_lg(f'  IA falhou: {e}')
+                    if not foundOption:
+                        if required:
+                            print_lg(f'  Respondendo aleatoriamente (campo obrigatório).')
+                            select.select_by_index(randint(1, len(select.options)-1))
+                            answer = select.first_selected_option.text
+                            randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
+                        else:
+                            print_lg(f'  Campo opcional — pulando.')
             questions_list.add((f'{label_org} [ {options} ]', answer, "select", prev_answer))
             continue
         
@@ -805,32 +805,38 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     #             answer = f'Decline ({phrase})'
                     #             ele = foundOption
                     #             break
-                    if not foundOption and required and use_AI and aiClient:
-                        try:
-                            raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
-                            if ai_provider.lower() == "openai":
-                                ai_ans = ai_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
-                            elif ai_provider.lower() == "deepseek":
-                                ai_ans = deepseek_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
-                            elif ai_provider.lower() == "gemini":
-                                ai_ans = gemini_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
-                            else:
-                                ai_ans = None
-                            if ai_ans:
-                                for i, option_label in enumerate(options_labels):
-                                    if str(ai_ans).lower() in option_label.lower() or option_label.lower() in str(ai_ans).lower():
-                                        ele = options[i]
-                                        answer = options_labels[i]
-                                        foundOption = True
-                                        print_lg(f'AI answered radio "{label_org}" with: "{ai_ans}"')
-                                        break
-                        except Exception as e:
-                            print_lg("Failed to get AI answer for radio question!", e)
+                    if not foundOption:
+                        raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
+                        print_lg(f'[RADIO FALHOU] Pergunta: "{label_org}"')
+                        print_lg(f'  Tentou responder: "{answer}"')
+                        print_lg(f'  Opções disponíveis: {raw_options}')
+                        if required and use_AI and aiClient:
+                            try:
+                                if ai_provider.lower() == "openai":
+                                    ai_ans = ai_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
+                                elif ai_provider.lower() == "deepseek":
+                                    ai_ans = deepseek_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
+                                elif ai_provider.lower() == "gemini":
+                                    ai_ans = gemini_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
+                                else:
+                                    ai_ans = None
+                                if ai_ans:
+                                    for i, option_label in enumerate(options_labels):
+                                        if str(ai_ans).lower() in option_label.lower() or option_label.lower() in str(ai_ans).lower():
+                                            ele = options[i]
+                                            answer = options_labels[i]
+                                            foundOption = True
+                                            print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{answer}"')
+                                            break
+                                if not foundOption:
+                                    print_lg(f'  IA não encontrou match. Resposta da IA: "{ai_ans}"')
+                            except Exception as e:
+                                print_lg(f'  IA falhou: {e}')
                     if foundOption or required:
                         actions.move_to_element(ele).click().perform()
                         if not foundOption: randomly_answered_questions.add((f'{label_org} ]',"radio"))
                     else:
-                        print_lg(f'Skipping optional radio question "{label_org}" — no match found.')
+                        print_lg(f'  Campo opcional — pulando.')
             else: answer = prev_answer
             questions_list.add((label_org+" ]", answer, "radio", prev_answer))
             continue
