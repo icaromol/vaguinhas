@@ -117,6 +117,7 @@ re_experience = re.compile(r'[(]?\s*(\d+)\s*[)]?\s*[-to]*\s*\d*[+]*\s*year[s]?',
 desired_salary_lakhs = str(round(desired_salary / 100000, 2))
 desired_salary_monthly = str(round(desired_salary/12, 2))
 desired_salary = str(desired_salary)
+desired_salary_clt = str(desired_salary_clt)
 
 current_ctc_lakhs = str(round(current_ctc / 100000, 2))
 current_ctc_monthly = str(round(current_ctc/12, 2))
@@ -602,12 +603,26 @@ def answer_common_questions(label: str, answer: str) -> str:
         answer = 'Advanced'
     # SaaS experience
     elif 'saas' in label and ('experience' in label or 'product' in label): answer = 'Yes'
-    # PM years
-    elif ('product manager' in label or 'pm' in label) and ('year' in label or 'experience' in label or 'senior' in label):
+    # Rede IP / networking experience
+    elif 'rede ip' in label or 'rede ip' in label or ('rede' in label and 'ip' in label): answer = 'Sim'
+    # PM / product manager years
+    elif ('gestor' in label or 'gestora' in label or 'product manager' in label or 'gerente de produto' in label) and ('ano' in label or 'year' in label or 'experiência' in label or 'experience' in label):
         answer = years_of_experience
+    elif ('pm' in label) and ('year' in label or 'experience' in label or 'senior' in label):
+        answer = years_of_experience
+    # Team / dev manager years
+    elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
+        answer = years_of_experience
+    # Hybrid / presential availability
+    elif ('híbrido' in label or 'hibrido' in label or 'hybrid' in label or 'presencial' in label or 'on-site' in label or 'onsite' in label) and ('disponib' in label or 'availab' in label or 'atuar' in label or 'trabalhar' in label):
+        answer = 'Sim'
     # Contact / future
     elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
-    # Salary
+    # Salary — CLT vs PJ
+    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa salarial' in label) and ('clt' in label or 'carteira' in label or 'efetiv' in label):
+        answer = desired_salary_clt
+    elif ('pretensão' in label or 'salário' in label or 'salary' in label or 'remuneração' in label or 'expectativa salarial' in label) and ('pj' in label or 'pessoa jurídica' in label or 'pessoa juridica' in label or 'freelan' in label):
+        answer = str(desired_salary)
     elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
         answer = str(desired_salary)
     # Employer / location
@@ -877,6 +892,10 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                         if 'month' in label or 'mensal' in label: answer = current_ctc_monthly
                         elif 'lakh' in label: answer = current_ctc_lakhs
                         else: answer = current_ctc
+                    elif 'clt' in label or 'carteira' in label or 'efetiv' in label:
+                        answer = desired_salary_clt
+                    elif 'pj' in label or 'pessoa jurídica' in label or 'pessoa juridica' in label:
+                        answer = str(desired_salary)
                     else:
                         if 'month' in label or 'mensal' in label: answer = desired_salary_monthly
                         elif 'lakh' in label: answer = desired_salary_lakhs
