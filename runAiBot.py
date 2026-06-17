@@ -532,9 +532,18 @@ def get_user_information() -> str:
 
 
 # Function to upload resume
-def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
+def upload_resume(modal: WebElement, resume: str, resume_already_uploaded: bool = False) -> tuple[bool, str]:
+    '''
+    Scans all file inputs in the modal and uploads the appropriate file.
+    Returns (resume_uploaded: bool, resume_filename: str).
+    resume_already_uploaded=True skips re-uploading resume but still handles cover letter / photo.
+    '''
     try:
         file_inputs = modal.find_elements(By.XPATH, ".//input[@type='file']")
+        if not file_inputs:
+            return resume_already_uploaded, resume
+        resume_uploaded = resume_already_uploaded
+        resume_name = resume
         for file_input in file_inputs:
             # Get surrounding label/text to understand what this field expects
             try:
@@ -549,30 +558,37 @@ def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
                 pass
 
             accept_attr = (file_input.get_attribute("accept") or "").lower()
+            print_lg(f"[UPLOAD] file input encontrado | container: '{container_text[:80]}' | accept: '{accept_attr}'")
+
             is_photo_field = any(w in container_text for w in ['photo', 'foto', 'image', 'imagem', 'picture', 'avatar']) or \
                              any(w in accept_attr for w in ['image/', 'jpeg', 'jpg', 'png'])
+            is_cover_field = any(w in container_text for w in ['cover', 'carta', 'letter', 'apresentação', 'motivação'])
+
             if is_photo_field:
                 if default_photo_path and os.path.exists(default_photo_path):
                     file_input.send_keys(os.path.abspath(default_photo_path))
                     print_lg(f"Photo uploaded: {default_photo_path}")
                 else:
                     print_lg(f"Photo field found but file not found: {default_photo_path}")
-            elif any(w in container_text for w in ['cover', 'carta', 'letter']):
+            elif is_cover_field:
                 cl_path = get_cover_letter_path()
                 if cl_path and os.path.exists(cl_path):
                     file_input.send_keys(os.path.abspath(cl_path))
                     print_lg(f"Cover letter uploaded: {cl_path}")
-                    return True, os.path.basename(cl_path)
                 else:
                     print_lg(f"Cover letter field found but file not found: {cl_path}")
-            else:
+            elif not resume_already_uploaded:
                 resume_path = get_resume_path()
                 file_input.send_keys(os.path.abspath(resume_path))
-                return True, os.path.basename(resume_path)
-        return False, "Previous resume"
+                resume_uploaded = True
+                resume_name = os.path.basename(resume_path)
+                print_lg(f"Resume uploaded: {resume_path}")
+            else:
+                print_lg(f"[UPLOAD] Ignorando campo de arquivo extra (resume já enviado): '{container_text[:60]}'")
+        return resume_uploaded, resume_name
     except Exception as e:
         print_lg(f"[DEBUG] Erro no upload: {e}")
-        return False, "Previous resume"
+        return resume_already_uploaded, resume
 
 # Function to answer common questions for Easy Apply
 def answer_common_questions(label: str, answer: str) -> str:
@@ -1453,27 +1469,30 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                         errored = "stuck"
                                         raise Exception("Seems like stuck in a continuous loop of next, probably because of new questions.")
                                     questions_list = answer_questions(modal, questions_list, work_location, job_description=description)
-                                    if useNewResume and not uploaded: uploaded, resume = upload_resume(modal, default_resume_path)
+                                    if useNewResume: uploaded, resume = upload_resume(modal, resume, resume_already_uploaded=uploaded)
                                     # Re-fetch modal to avoid StaleElementReferenceException
                                     try: modal = find_by_class(driver, "jobs-easy-apply-modal")
                                     except: pass
-                                    # Try Review button first (PT-BR + EN), then Next
-                                    review_xp = './/span[normalize-space(.)="Review" or normalize-space(.)="Revisar" or normalize-space(.)="Revisão"]'
-                                    next_xp = './/button[.//span[normalize-space(.)="Next" or normalize-space(.)="Próximo" or normalize-space(.)="Avançar"]]'
-                                    try:
-                                        next_button = modal.find_element(By.XPATH, review_xp)
-                                    except NoSuchElementException:
+                                    # Try Review button first (PT-BR + EN), then Next/Continue
+                                    review_xp = './/button[.//span[normalize-space(.)="Review" or normalize-space(.)="Revisar" or normalize-space(.)="Revisão"]]'
+                                    next_xp = './/button[.//span[normalize-space(.)="Next" or normalize-space(.)="Próximo" or normalize-space(.)="Avançar" or normalize-space(.)="Continue" or normalize-space(.)="Continuar"]]'
+                                    next_button = None
+                                    for xp in (review_xp, next_xp):
                                         try:
-                                            next_button = modal.find_element(By.XPATH, next_xp)
+                                            next_button = modal.find_element(By.XPATH, xp)
+                                            break
                                         except NoSuchElementException:
-                                            next_button = None
+                                            pass
                                     if next_button:
+                                        btn_text = next_button.text.strip()
+                                        print_lg(f"[NAV] Clicando botão: '{btn_text}'")
                                         try: next_button.click()
                                         except ElementClickInterceptedException: break
                                         except:
                                             try: driver.execute_script("arguments[0].click();", next_button)
                                             except: break
                                     else:
+                                        print_lg("[NAV] Nenhum botão Next/Review encontrado — encerrando loop.")
                                         break
                                     buffer(click_gap)
 
