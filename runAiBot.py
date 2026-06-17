@@ -891,25 +891,34 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         radio = try_xp(Question, './/fieldset[@data-test-form-builder-radio-button-form-component="true"]', False)
         if radio:
             prev_answer = None
-            label = try_xp(radio, './/span[@data-test-form-builder-radio-button-form-component__title]', False)
-            try: label = find_by_class(label, "visually-hidden", 2.0)
-            except: pass
-            label_org = label.text if label else "Unknown"
+            try:
+                label = try_xp(radio, './/span[@data-test-form-builder-radio-button-form-component__title]', False)
+                try: label = find_by_class(label, "visually-hidden", 2.0)
+                except: pass
+                label_org = label.text if label else "Unknown"
+            except Exception:
+                label_org = "Unknown"
             answer = 'Yes'
             label = label_org.lower()
 
             # Collect option metadata (text + value) but NOT element references — those go stale
             label_org += ' [ '
             options_meta = []  # list of (label_text, value, input_id)
-            for option in radio.find_elements(By.TAG_NAME, 'input'):
-                opt_id = option.get_attribute("id")
-                opt_val = option.get_attribute("value") or ""
-                opt_label_el = try_xp(radio, f'.//label[@for="{opt_id}"]', False)
-                opt_text = opt_label_el.text if opt_label_el else "Unknown"
-                opt_entry = f'"{opt_text}"<{opt_val}>'
-                options_meta.append((opt_text, opt_val, opt_id, opt_entry))
-                if option.is_selected(): prev_answer = opt_entry
-                label_org += f' {opt_entry},'
+            try:
+                for option in radio.find_elements(By.TAG_NAME, 'input'):
+                    try:
+                        opt_id = option.get_attribute("id")
+                        opt_val = option.get_attribute("value") or ""
+                        opt_label_el = try_xp(radio, f'.//label[@for="{opt_id}"]', False)
+                        opt_text = opt_label_el.text if opt_label_el else "Unknown"
+                        opt_entry = f'"{opt_text}"<{opt_val}>'
+                        options_meta.append((opt_text, opt_val, opt_id, opt_entry))
+                        if option.is_selected(): prev_answer = opt_entry
+                        label_org += f' {opt_entry},'
+                    except Exception:
+                        continue
+            except Exception as e:
+                print_lg(f'[RADIO] StaleElement ao coletar opções: {e}')
             options_labels = [m[3] for m in options_meta]  # legacy format for questions_list
 
             def _click_radio_by_id(opt_id: str) -> bool:
@@ -1020,12 +1029,16 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         
         # Check if it's a text question
         text = try_xp(Question, ".//input[@type='text']", False)
-        if text: 
+        if text:
             do_actions = False
             label = try_xp(Question, ".//label[@for]", False)
-            try: label = label.find_element(By.CLASS_NAME,'visually-hidden')
+            try:
+                if label:
+                    vh = try_xp(label, ".//*[contains(@class,'visually-hidden')]", False)
+                    if vh: label = vh
             except: pass
-            label_org = label.text if label else "Unknown"
+            try: label_org = label.text if label else "Unknown"
+            except: label_org = "Unknown"
             answer = "" # years_of_experience
             label = label_org.lower()
 
@@ -1130,10 +1143,12 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         if text_area:
             do_actions = False  # reset — do_actions from text block must not leak here
             label = try_xp(Question, ".//label[@for]", False)
-            label_org = label.text if label else "Unknown"
+            try: label_org = label.text if label else "Unknown"
+            except: label_org = "Unknown"
             label = label_org.lower()
             answer = ""
-            prev_answer = text_area.get_attribute("value")
+            try: prev_answer = text_area.get_attribute("value")
+            except: prev_answer = ""
             print_lg(f'[TEXTAREA] Label: "{label_org}" | job_language: {job_language}')
             if not prev_answer or overwrite_previous_answers:
                 if 'summary' in label or 'sobre você' in label or 'perfil' in label: answer = get_linkedin_summary_text()
@@ -1188,17 +1203,21 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         checkbox = try_xp(Question, ".//input[@type='checkbox']", False)
         if checkbox:
             label = try_xp(Question, ".//span[@class='visually-hidden']", False)
-            label_org = label.text if label else "Unknown"
+            try: label_org = label.text if label else "Unknown"
+            except: label_org = "Unknown"
             label = label_org.lower()
-            answer = try_xp(Question, ".//label[@for]", False)  # Sometimes multiple checkboxes are given for 1 question, Not accounted for that yet
-            answer = answer.text if answer else "Unknown"
-            prev_answer = checkbox.is_selected()
+            ans_el = try_xp(Question, ".//label[@for]", False)
+            try: answer = ans_el.text if ans_el else "Unknown"
+            except: answer = "Unknown"
+            try: prev_answer = checkbox.is_selected()
+            except: prev_answer = False
             checked = prev_answer
             if not prev_answer:
                 try:
-                    actions.move_to_element(checkbox).click().perform()
+                    fresh_cb = try_xp(Question, ".//input[@type='checkbox']", False) or checkbox
+                    actions.move_to_element(fresh_cb).click().perform()
                     checked = True
-                except Exception as e: 
+                except Exception as e:
                     print_lg("Checkbox click failed!", e)
                     pass
             questions_list.add((f'{label} ([X] {answer})', checked, "checkbox", prev_answer))
