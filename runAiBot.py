@@ -685,8 +685,11 @@ def answer_common_questions(label: str, answer: str) -> str:
     # Team / dev manager years
     elif ('gestor' in label or 'gestora' in label or 'gerente' in label or 'manager' in label) and ('equipe' in label or 'team' in label or 'desenvolv' in label or 'dev' in label):
         answer = years_of_experience
-    # PO / PM in banking / financial / payments systems experience
-    elif ('product owner' in label or 'po' in label or 'atuou' in label or 'atuado' in label or 'conhecimento' in label or 'experiência' in label or 'experience' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label or 'pagamento' in label or 'payment' in label or 'meios de pagamento' in label):
+    # PO in payments — No (no specific payments domain experience)
+    elif ('pagamento' in label or 'payment' in label or 'meios de pagamento' in label):
+        answer = 'Não'
+    # PO / PM in banking / financial systems experience — Yes
+    elif ('product owner' in label or 'po' in label or 'atuou' in label or 'atuado' in label or 'conhecimento' in label or 'experiência' in label or 'experience' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
         answer = 'Sim'
     # Product Owner experience (generic)
     elif ('product owner' in label or 'po' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
@@ -1097,13 +1100,22 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                         print_lg(f'Skipping optional text question "{label_org}" — no answer mapped.')
                 ##<
                 if answer:
-                    text.clear()
-                    text.send_keys(answer)
+                    # Re-fetch text input fresh before interacting — AI calls may have staled it
+                    text = try_xp(Question, ".//input[@type='text']", False) or text
+                    try:
+                        text.clear()
+                        text.send_keys(answer)
+                    except Exception as e:
+                        print_lg(f'[TEXT] StaleElement ao escrever "{label_org}": {e}')
                 if do_actions:
                     sleep(2)
                     actions.send_keys(Keys.ARROW_DOWN)
                     actions.send_keys(Keys.ENTER).perform()
-            questions_list.add((label, text.get_attribute("value"), "text", prev_answer))
+            try:
+                final_text = try_xp(Question, ".//input[@type='text']", False) or text
+                questions_list.add((label, final_text.get_attribute("value"), "text", prev_answer))
+            except Exception:
+                questions_list.add((label, answer, "text", prev_answer))
             continue
 
         # Check if it's a textarea question
@@ -1146,13 +1158,22 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     elif not required:
                         print_lg(f'Skipping optional textarea "{label_org}" — no answer mapped.')
             if answer:
-                text_area.clear()
-                text_area.send_keys(answer)
+                # Re-fetch textarea fresh before interacting — AI calls may have staled it
+                text_area = try_xp(Question, ".//textarea", False) or text_area
+                try:
+                    text_area.clear()
+                    text_area.send_keys(answer)
+                except Exception as e:
+                    print_lg(f'[TEXTAREA] StaleElement ao escrever "{label_org}": {e}')
             if do_actions:
-                    sleep(2)
-                    actions.send_keys(Keys.ARROW_DOWN)
-                    actions.send_keys(Keys.ENTER).perform()
-            questions_list.add((label, text_area.get_attribute("value"), "textarea", prev_answer))
+                sleep(2)
+                actions.send_keys(Keys.ARROW_DOWN)
+                actions.send_keys(Keys.ENTER).perform()
+            try:
+                final_ta = try_xp(Question, ".//textarea", False) or text_area
+                questions_list.add((label, final_ta.get_attribute("value"), "textarea", prev_answer))
+            except Exception:
+                questions_list.add((label, answer, "textarea", prev_answer))
             ##<
             continue
 
