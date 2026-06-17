@@ -562,6 +562,7 @@ def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
                 if cl_path and os.path.exists(cl_path):
                     file_input.send_keys(os.path.abspath(cl_path))
                     print_lg(f"Cover letter uploaded: {cl_path}")
+                    return True, os.path.basename(cl_path)
                 else:
                     print_lg(f"Cover letter field found but file not found: {cl_path}")
             else:
@@ -586,6 +587,34 @@ def answer_common_questions(label: str, answer: str) -> str:
     elif 'disability' in label or 'deficiência' in label or 'pcd' in label or 'pessoa com defici' in label: answer = disability_status
     # Veteran
     elif 'veteran' in label or 'veterano' in label: answer = veteran_status
+    # Relocation — always No
+    elif 'reloc' in label or 'relocate' in label or 'relocação' in label or 'mudança de cidade' in label or 'mudança de país' in label:
+        answer = 'No'
+    # Previous interview at this company
+    elif 'interview' in label and ('before' in label or 'previously' in label or 'past' in label or 'prior' in label or 'undergone' in label or 'process' in label):
+        answer = 'No'
+    # Personal/family relationship with employee at this company
+    elif 'personal relationship' in label or 'know' in label and 'employee' in label:
+        answer = 'No'
+    elif 'relative' in label and ('employee' in label or 'company' in label or 'work' in label):
+        answer = 'No'
+    # "If yes, please indicate how you know the employee" / "Employee name" — leave blank (we answered No above)
+    elif ('indicate' in label or 'specify' in label or 'especif' in label) and ('know' in label or 'employee' in label or 'relationship' in label):
+        answer = ''
+    elif "employee's name" in label or 'nome do funcionário' in label or 'nome do colaborador' in label:
+        answer = ''
+    # Deloitte / auditor association — always No
+    elif 'deloitte' in label or ('auditor' in label and ('independent' in label or 'associated' in label)):
+        answer = 'No'
+    # Booking Holdings group (Kayak, Priceline, Booking.com, etc.)
+    elif 'booking holdings' in label or ('booking' in label and 'group' in label) or 'kayak' in label or 'priceline' in label or ('openTable' in label) or 'opentable' in label:
+        answer = 'No'
+    # SMS / text updates consent — Yes is fine
+    elif ('sms' in label or ('text' in label and 'update' in label)) and ('allow' in label or 'consent' in label or 'agree' in label):
+        answer = 'Yes'
+    # Data privacy / personal data consent — Yes
+    elif ('personal data' in label or 'data from your application' in label or 'dados pessoais' in label) and ('agree' in label or 'allow' in label or 'consent' in label):
+        answer = 'Yes'
     # Company-specific: ABInBev / Ambev
     elif 'abinbev' in label or 'ambev' in label:
         if 'currently' in label and 'employee' in label: answer = 'No'
@@ -705,8 +734,16 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     answer = disability_status
                 elif 'proficiency' in label or 'fluência' in label:
                     answer = 'Professional'
+                # Notice period / availability to start — map notice_period days to closest option
+                elif ('notice' in label or 'start' in label or 'available' in label or 'aviso prévio' in label) and ('quickly' in label or 'soon' in label or 'when' in label or 'how' in label or 'period' in label or 'período' in label):
+                    answer = notice_period  # "0" means immediate
                 elif 'grau de contato' in label or 'conhece' in label or 'relationship' in label:
                     answer = 'Não'
+                # Education fields — degree type and field of study (let AI handle or leave blank, not "Yes")
+                elif 'degree' in label or 'field of study' in label or 'major' in label or 'course' in label or 'grau' in label or 'área de estudo' in label:
+                    answer = ''  # let AI handle if required, or skip if optional
+                elif 'school' in label or 'university' in label or 'college' in label or 'institution' in label or 'universidade' in label or 'instituição' in label:
+                    answer = ''  # let AI handle if required, or skip if optional
                 elif any(loc_word in label for loc_word in ['location', 'city', 'state', 'country', 'cidade', 'estado', 'país', 'localização']):
                     if 'country' in label or 'país' in label:
                         answer = country
@@ -737,11 +774,14 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     return False, ans
 
                 foundOption = False
-                try:
-                    select.select_by_visible_text(answer)
-                    foundOption = True
-                except NoSuchElementException:
-                    foundOption, answer = _select_fuzzy(answer)
+                if not answer:
+                    pass  # answer is empty — skip direct match, let AI or required-fallback handle it
+                else:
+                    try:
+                        select.select_by_visible_text(answer)
+                        foundOption = True
+                    except NoSuchElementException:
+                        foundOption, answer = _select_fuzzy(answer)
 
                 if not foundOption:
                     print_lg(f'[SELECT FALHOU] Pergunta: "{label_org}"')
