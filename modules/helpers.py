@@ -253,6 +253,21 @@ def convert_to_lakhs(value: str) -> str:
     return value
 
 
+def detect_language(text: str) -> str:
+    '''
+    Detects whether text is primarily English or Portuguese.
+    Returns "en" or "pt".
+    '''
+    if not text or text == "Unknown":
+        return "pt"
+    text_lower = text.lower()
+    en_words = ["the", "and", "for", "you", "with", "are", "this", "that", "have", "will", "your", "from", "they", "experience", "team", "work", "role", "skills", "job", "our", "we", "be", "to", "of", "in", "a", "is", "it", "at", "as", "on", "we're", "you'll", "we'll"]
+    pt_words = ["de", "do", "da", "em", "para", "que", "com", "uma", "você", "nosso", "nossa", "ser", "ter", "pelo", "pela", "suas", "seus", "como", "mais", "por", "os", "as", "um", "ao", "na", "no", "se", "também", "experiência", "equipe"]
+    en_count = sum(1 for w in en_words if f" {w} " in f" {text_lower} ")
+    pt_count = sum(1 for w in pt_words if f" {w} " in f" {text_lower} ")
+    return "en" if en_count > pt_count else "pt"
+
+
 def convert_to_json(data) -> dict:
     '''
     Function to convert data to JSON, if unsuccessful, returns `{"error": "Unable to parse the response as JSON", "data": data}`

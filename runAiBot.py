@@ -103,6 +103,7 @@ full_name = first_name + " " + middle_name + " " + last_name if middle_name else
 
 useNewResume = True
 randomly_answered_questions = set()
+job_language = "pt"  # "en" or "pt", updated per job based on job description
 
 tabs_count = 1
 easy_applied_count = 0
@@ -484,6 +485,45 @@ def get_job_description(
         
 
 
+def get_resume_path() -> str:
+    '''Returns the resume path for the current job language, falling back to default.'''
+    if job_language == "en":
+        en_path = default_resume_path.replace("resume.pdf", "resume_en.pdf")
+        if os.path.exists(en_path):
+            return en_path
+    return default_resume_path
+
+
+def get_cover_letter_path() -> str:
+    '''Returns the cover letter path for the current job language, falling back to default.'''
+    if job_language == "en":
+        en_path = default_cover_letter_path.replace("cover_letter.pdf", "cover_letter_en.pdf")
+        if os.path.exists(en_path):
+            return en_path
+    return default_cover_letter_path
+
+
+def get_cover_letter_text() -> str:
+    '''Returns the cover letter text for the current job language.'''
+    if job_language == "en":
+        return cover_letter_en if cover_letter_en else cover_letter
+    return cover_letter
+
+
+def get_linkedin_summary_text() -> str:
+    '''Returns the LinkedIn summary for the current job language.'''
+    if job_language == "en":
+        return linkedin_summary_en if linkedin_summary_en else linkedin_summary
+    return linkedin_summary
+
+
+def get_user_information() -> str:
+    '''Returns the user information in the current job language for AI context.'''
+    if job_language == "en":
+        return user_information_all_en if user_information_all_en else user_information_all
+    return user_information_all
+
+
 # Function to upload resume
 def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
     try:
@@ -501,21 +541,26 @@ def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
             except:
                 pass
 
-            if any(w in container_text for w in ['photo', 'foto', 'image', 'imagem', 'picture', 'avatar']):
+            accept_attr = (file_input.get_attribute("accept") or "").lower()
+            is_photo_field = any(w in container_text for w in ['photo', 'foto', 'image', 'imagem', 'picture', 'avatar']) or \
+                             any(w in accept_attr for w in ['image/', 'jpeg', 'jpg', 'png'])
+            if is_photo_field:
                 if default_photo_path and os.path.exists(default_photo_path):
                     file_input.send_keys(os.path.abspath(default_photo_path))
-                    print_lg(f"[DEBUG] Foto enviada: {default_photo_path}")
+                    print_lg(f"Photo uploaded: {default_photo_path}")
                 else:
-                    print_lg(f"[DEBUG] Campo de foto ignorado (arquivo não encontrado: {default_photo_path})")
+                    print_lg(f"Photo field found but file not found: {default_photo_path}")
             elif any(w in container_text for w in ['cover', 'carta', 'letter']):
-                if default_cover_letter_path and os.path.exists(default_cover_letter_path):
-                    file_input.send_keys(os.path.abspath(default_cover_letter_path))
-                    print_lg(f"[DEBUG] Cover letter enviada: {default_cover_letter_path}")
+                cl_path = get_cover_letter_path()
+                if cl_path and os.path.exists(cl_path):
+                    file_input.send_keys(os.path.abspath(cl_path))
+                    print_lg(f"Cover letter uploaded: {cl_path}")
                 else:
-                    print_lg(f"[DEBUG] Campo de cover letter ignorado (arquivo não encontrado: {default_cover_letter_path})")
+                    print_lg(f"Cover letter field found but file not found: {cl_path}")
             else:
-                file_input.send_keys(os.path.abspath(resume))
-                return True, os.path.basename(default_resume_path)
+                resume_path = get_resume_path()
+                file_input.send_keys(os.path.abspath(resume_path))
+                return True, os.path.basename(resume_path)
         return False, "Previous resume"
     except Exception as e:
         print_lg(f"[DEBUG] Erro no upload: {e}")
@@ -633,11 +678,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                         if use_AI and aiClient:
                             try:
                                 if ai_provider.lower() == "openai":
-                                    ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=user_information_all)
+                                    ai_ans = ai_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
                                 elif ai_provider.lower() == "deepseek":
-                                    ai_ans = deepseek_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                    ai_ans = deepseek_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
                                 elif ai_provider.lower() == "gemini":
-                                    ai_ans = gemini_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                    ai_ans = gemini_answer_question(aiClient, label_org, options=optionsText, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
                                 else:
                                     ai_ans = None
                                 if ai_ans:
@@ -713,11 +758,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                         try:
                             raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
                             if ai_provider.lower() == "openai":
-                                ai_ans = ai_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, user_information_all=user_information_all)
+                                ai_ans = ai_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, user_information_all=get_user_information())
                             elif ai_provider.lower() == "deepseek":
-                                ai_ans = deepseek_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                ai_ans = deepseek_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             elif ai_provider.lower() == "gemini":
-                                ai_ans = gemini_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                ai_ans = gemini_answer_question(aiClient, label_org, options=raw_options, question_type="single_select", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             else:
                                 ai_ans = None
                             if ai_ans:
@@ -785,8 +830,8 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 elif 'zip' in label or 'postal' in label or 'cep' in label: answer = zipcode
                 elif 'country' in label or 'país' in label or 'pais' in label: answer = country
                 elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label or 'current employer' in label: answer = recent_employer
-                elif 'cover letter' in label or 'carta de apresentação' in label or 'carta de motivação' in label: answer = cover_letter
-                elif 'summary' in label or 'resumo' in label or 'sobre você' in label: answer = linkedin_summary
+                elif 'cover letter' in label or 'carta de apresentação' in label or 'carta de motivação' in label: answer = get_cover_letter_text()
+                elif 'summary' in label or 'resumo' in label or 'sobre você' in label: answer = get_linkedin_summary_text()
                 elif 'deficiência' in label or 'pcd' in label or 'disability' in label or 'adaptação' in label: answer = 'Não'
                 else: answer = answer_common_questions(label, answer)
                 ##> ------ Yang Li : MARKYangL - Feature ------
@@ -794,11 +839,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     if use_AI and aiClient:
                         try:
                             if ai_provider.lower() == "openai":
-                                answer = ai_answer_question(aiClient, label_org, question_type="text", job_description=job_description, user_information_all=user_information_all)
+                                answer = ai_answer_question(aiClient, label_org, question_type="text", job_description=job_description, user_information_all=get_user_information())
                             elif ai_provider.lower() == "deepseek":
-                                answer = deepseek_answer_question(aiClient, label_org, options=None, question_type="text", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                answer = deepseek_answer_question(aiClient, label_org, options=None, question_type="text", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             elif ai_provider.lower() == "gemini":
-                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="text", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="text", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             else:
                                 randomly_answered_questions.add((label_org, "text"))
                                 answer = years_of_experience
@@ -833,18 +878,18 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
             answer = ""
             prev_answer = text_area.get_attribute("value")
             if not prev_answer or overwrite_previous_answers:
-                if 'summary' in label: answer = linkedin_summary
-                elif 'cover' in label: answer = cover_letter
+                if 'summary' in label: answer = get_linkedin_summary_text()
+                elif 'cover' in label: answer = get_cover_letter_text()
                 if answer == "":
                 ##> ------ Yang Li : MARKYangL - Feature ------
                     if use_AI and aiClient:
                         try:
                             if ai_provider.lower() == "openai":
-                                answer = ai_answer_question(aiClient, label_org, question_type="textarea", job_description=job_description, user_information_all=user_information_all)
+                                answer = ai_answer_question(aiClient, label_org, question_type="textarea", job_description=job_description, user_information_all=get_user_information())
                             elif ai_provider.lower() == "deepseek":
-                                answer = deepseek_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                answer = deepseek_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             elif ai_provider.lower() == "gemini":
-                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=user_information_all)
+                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=get_user_information())
                             else:
                                 randomly_answered_questions.add((label_org, "textarea"))
                                 answer = ""
@@ -1132,6 +1177,10 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                         rejected_jobs.add(job_id)
                         skip_count += 1
                         continue
+
+                    global job_language
+                    job_language = detect_language(description)
+                    print_lg(f"Job language detected: {job_language.upper()}")
 
                     
                     if use_AI and description != "Unknown":

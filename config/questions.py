@@ -115,6 +115,26 @@ Meu diferencial não é saber fazer tudo. É saber conectar negócio, tecnologia
 
 Ícaro Molinari | icaromolinari@gmail.com | +55 31 98710-2204 | linkedin.com/in/icaromolinari
 """
+## >>>>>>>>>>> ENGLISH VERSIONS (used automatically when job description is in English) <<<<<<<<<<<
+
+linkedin_summary_en = """
+Product Manager with a full technical background and founder mindset. I built coprodux, a B2B SaaS, from scratch — leading discovery, defining the roadmap, managing a team of 13 people and shipping generative AI integrations (OpenAI, Anthropic, Azure AI Foundry) to production. Reached 25 paying customers and R$60k in funding. I also mentor founders at Founder Institute, the world's largest pre-seed accelerator.
+"""
+
+cover_letter_en = """
+Hi,
+
+I'm applying for this role with a profile that few candidates can combine: strategic product vision, full technical background, and real founder experience.
+
+Over the last 2 years, I built coprodux from scratch — a B2B SaaS for communication planning — acting simultaneously as PM and CTO. I led customer discovery, defined the roadmap, prioritized the backlog, managed a team of up to 13 people, and made all architecture and infrastructure decisions. The product reached 25 paying customers, hundreds of users, and secured R$60,000 in funding. We also shipped generative AI (OpenAI, Anthropic, Azure AI Foundry) as a production feature.
+
+In parallel, I've been a Product Mentor at Founder Institute (world's largest pre-seed accelerator) for 2 years, guiding founders on product decisions, go-to-market, and technical strategy.
+
+My edge isn't knowing how to do everything. It's connecting business, technology, and users without noise — and making decisions with real technical context, which eliminates the product-engineering gap on a daily basis.
+
+Ícaro Molinari | icaromolinari@gmail.com | +55 31 98710-2204 | linkedin.com/in/icaromolinari
+"""
+
 ##> ------ Dheeraj Deshwal : dheeraj9811 Email:dheeraj20194@iiitd.ac.in/dheerajdeshwal9811@gmail.com - Feature ------
 
 # Your user_information_all letter in quotes, use \n to add line breaks if using single quotes "user_information_all".You can skip \n if using triple quotes """user_information_all""" (This question makes sense though)
@@ -152,6 +172,41 @@ PREMIAÇÕES: Inovativa Brasil, Ibmec Hubs
 ANOS DE EXPERIÊNCIA: 5
 PRETENSÃO SALARIAL: R$180.000/ano
 DISPONIBILIDADE: imediata
+"""
+
+user_information_all_en = """
+Name: Ícaro Molinari
+Email: icaromolinari@gmail.com
+Phone: +55 31 98710-2204
+Location: Belo Horizonte, MG, Brazil
+LinkedIn: https://linkedin.com/in/icaromolinari
+
+SUMMARY:
+Product Manager with a full technical background and founder mindset. Built coprodux (B2B SaaS) from scratch acting simultaneously as PM and CTO. 25 paying customers, R$60k funding, team of 13 people. Shipped generative AI (OpenAI, Anthropic, Azure AI Foundry) to production. Product Mentor at Founder Institute for 2 years.
+
+EXPERIENCE:
+- Founder & PM/CTO, coprodux (Feb 2024 – May 2026): B2B SaaS for communication planning. Customer discovery, roadmap, backlog, architecture and team leadership (13 people). Stack: NestJS, React, Next.js, Tailwind, PostgreSQL, Azure.
+- Product Mentor, Founder Institute São Paulo (Oct 2024 – present): Mentored 10+ startups on discovery, roadmap, GTM, technical decisions and pitch.
+- Business Consultant, Grow my Business (Aug 2021 – Jan 2024): Strategic consulting in tech, health, retail and finance.
+- Sales & Marketing Director, Vida Veda (Jun 2023 – Feb 2024): +40% revenue growth, +500% sales on key product.
+- Marketing Coordinator, V4 Company (Sep 2022 – Jan 2023): Managed R$20M/month in ad spend. Improved ROI for 85%+ of clients.
+- Marketing Director, Evolution Marketing (Aug 2021 – Aug 2022): NPS dashboard, delivery pipeline, product portfolio from scratch.
+
+EDUCATION:
+- MBA in Organizational Leadership · Uniamérica (2024)
+- FI Core Program · Founder Institute (2024)
+- Tech Degree in Marketing · Uniamérica (2021–2024)
+- Bachelor's in Music · UFMG (2015–2019)
+
+SKILLS:
+Product Discovery, Roadmap Strategy, Backlog Prioritization, OKRs, Scrum, Kanban, Stakeholder Management, Go-to-Market, Generative AI (LLMs), OpenAI API, Anthropic API, Azure AI Foundry, NestJS, React, Next.js, PostgreSQL, Azure, Data-driven decisions, B2B SaaS
+
+LANGUAGES: Portuguese (native), English (professional), Spanish (professional), German (basic)
+
+AWARDS: Inovativa Brasil, Ibmec Hubs
+YEARS OF EXPERIENCE: 5
+SALARY EXPECTATION: R$180,000/year
+AVAILABILITY: immediate
 """
 ##<
 '''
