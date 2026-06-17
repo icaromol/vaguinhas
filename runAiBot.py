@@ -1474,8 +1474,8 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                     try: modal = find_by_class(driver, "jobs-easy-apply-modal")
                                     except: pass
                                     # Try Review button first (PT-BR + EN), then Next/Continue
-                                    review_xp = './/button[.//span[normalize-space(.)="Review" or normalize-space(.)="Revisar" or normalize-space(.)="Revisão"]]'
-                                    next_xp = './/button[.//span[normalize-space(.)="Next" or normalize-space(.)="Próximo" or normalize-space(.)="Avançar" or normalize-space(.)="Continue" or normalize-space(.)="Continuar"]]'
+                                    review_xp = './/button[.//*[contains(normalize-space(.),"Review") or contains(normalize-space(.),"Revisar") or contains(normalize-space(.),"Revisão") or contains(normalize-space(.),"Rever")]]'
+                                    next_xp   = './/button[.//*[contains(normalize-space(.),"Next") or contains(normalize-space(.),"Próximo") or contains(normalize-space(.),"Avançar") or contains(normalize-space(.),"Continue") or contains(normalize-space(.),"Continuar") or contains(normalize-space(.),"Prosseguir")]]'
                                     next_button = None
                                     for xp in (review_xp, next_xp):
                                         try:
