@@ -61,7 +61,7 @@ def get_default_temp_profile() -> str:
     # Thanks to https://github.com/vinodbavage31 for suggestion!
     home = pathlib.Path.home()
     if sys.platform.startswith('win'):
-        return "--user-data-dir=C:\\temp\\auto-job-apply-profile"
+        return "--user-data-dir=" + str(home / "AppData" / "Local" / "auto-job-apply-profile")
     elif sys.platform.startswith('linux'):
         return str(home / ".auto-job-apply-profile")
     return str(home / "Library" / "Application Support" / "Google" / "Chrome" / "auto-job-apply-profile")
@@ -82,7 +82,8 @@ def find_default_profile_directory() -> str | None:
         paths = [
             os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"),
             os.path.expandvars(r"%USERPROFILE%\AppData\Local\Google\Chrome\User Data"),
-            os.path.expandvars(r"%USERPROFILE%\Local Settings\Application Data\Google\Chrome\User Data")
+            os.path.expandvars(r"%USERPROFILE%\Local Settings\Application Data\Google\Chrome\User Data"),
+            r"C:\Users\icaro\AppData\Local\Google\Chrome\User Data",
         ]
     # Linux
     elif sys.platform.startswith('linux'):

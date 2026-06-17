@@ -25,6 +25,36 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 
 # Click Functions
+PT_BR_BUTTON_MAP = {
+    "Next": ["Próximo", "Avançar", "Next"],
+    "Review": ["Revisar", "Revisão", "Review"],
+    "Submit application": ["Enviar candidatura", "Enviar inscrição", "Enviar", "Submit application"],
+    "Continue applying": ["Continuar candidatura", "Continuar", "Continue applying"],
+    "Done": ["Concluído", "Feito", "Done"],
+    "Save": ["Salvar", "Save"],
+    "Discard": ["Descartar", "Discard"],
+    "Easy Apply": ["Candidatura via LinkedIn", "Easy Apply"],
+    "Past month": ["No mês passado", "Past month"],
+    "Past week": ["Na semana passada", "Past week"],
+    "Past 24 hours": ["Nas últimas 24 horas", "Past 24 hours"],
+    "Any time": ["Qualquer hora", "Any time"],
+    "Most recent": ["Mais recentes", "Most recent"],
+    "Most relevant": ["Mais relevantes", "Most relevant"],
+    "Associate": ["Associado", "Associate"],
+    "Mid-Senior level": ["Pleno-Sênior", "Mid-Senior level"],
+    "Entry level": ["Inicial", "Entry level"],
+    "Director": ["Diretor", "Director"],
+    "Executive": ["Executivo", "Executive"],
+    "Full-time": ["Período integral", "Full-time"],
+    "Part-time": ["Meio período", "Part-time"],
+    "Contract": ["Contrato", "Contract"],
+    "Temporary": ["Temporário", "Temporary"],
+    "Internship": ["Estágio", "Internship"],
+    "Remote": ["Remoto", "Remote"],
+    "Hybrid": ["Híbrido", "Hybrid"],
+    "On-site": ["Presencial", "On-site"],
+}
+
 def wait_span_click(driver: WebDriver, text: str, time: float=5.0, click: bool=True, scroll: bool=True, scrollTop: bool=False) -> WebElement | bool:
     '''
     Finds the span element with the given `text`.
@@ -35,8 +65,10 @@ def wait_span_click(driver: WebDriver, text: str, time: float=5.0, click: bool=T
     - Will scroll to the top if `scrollTop = True`.
     '''
     if text:
+        candidates = PT_BR_BUTTON_MAP.get(text, [text])
+        xpath = './/span[' + ' or '.join([f'normalize-space(.)="{t}"' for t in candidates]) + ']'
         try:
-            button = WebDriverWait(driver,time).until(EC.presence_of_element_located((By.XPATH, './/span[normalize-space(.)="'+text+'"]')))
+            button = WebDriverWait(driver, time).until(EC.presence_of_element_located((By.XPATH, xpath)))
             if scroll:  scroll_to_view(driver, button, scrollTop)
             if click:
                 button.click()

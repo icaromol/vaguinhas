@@ -21,6 +21,7 @@ import csv
 import re
 import time
 import pyautogui
+import pymsgbox
 
 # Set CSV field size limit to prevent field size errors
 csv.field_size_limit(1000000)  # Set to 1MB instead of default 131KB
@@ -37,6 +38,7 @@ from selenium.common.exceptions import NoSuchElementException, ElementClickInter
 
 from config.personals import *
 from config.questions import *
+from config.questions import default_photo_path, default_cover_letter_path
 from config.search import *
 from config.secrets import use_AI, username, password, ai_provider
 from config.settings import *
@@ -47,15 +49,44 @@ from modules.clickers_and_finders import *
 from modules.validator import validate_config
 
 if use_AI:
-    from modules.ai.openaiConnections import ai_create_openai_client, ai_extract_skills, ai_answer_question, ai_close_openai_client
-    from modules.ai.deepseekConnections import deepseek_create_client, deepseek_extract_skills, deepseek_answer_question
-    from modules.ai.geminiConnections import gemini_create_client, gemini_extract_skills, gemini_answer_question
+    if ai_provider.lower() in ("openai", "openai-like"):
+        from modules.ai.openaiConnections import ai_create_openai_client, ai_extract_skills, ai_answer_question, ai_close_openai_client
+    elif ai_provider.lower() == "deepseek":
+        from modules.ai.deepseekConnections import deepseek_create_client, deepseek_extract_skills, deepseek_answer_question
+    elif ai_provider.lower() == "gemini":
+        from modules.ai.geminiConnections import gemini_create_client, gemini_extract_skills, gemini_answer_question
 
 from typing import Literal
 
 
 pyautogui.FAILSAFE = False
 # if use_resume_generator:    from resume_generator import is_logged_in_GPT, login_GPT, open_resume_chat, create_custom_resume
+
+
+def _show_copiable_error(title: str, message: str) -> None:
+    import tkinter as tk
+    from tkinter import scrolledtext
+    root = tk.Tk()
+    root.title(title)
+    root.geometry("600x400")
+    root.lift()
+    root.attributes("-topmost", True)
+    tk.Label(root, text=message.split("\n\nERRO:")[0], wraplength=580, justify="left", pady=8).pack(fill="x", padx=10)
+    frame = tk.Frame(root)
+    frame.pack(fill="both", expand=True, padx=10)
+    txt = scrolledtext.ScrolledText(frame, height=8, wrap="word")
+    txt.pack(fill="both", expand=True)
+    error_text = message.split("\n\nERRO:\n")[-1] if "\n\nERRO:\n" in message else message
+    txt.insert("1.0", error_text)
+    txt.config(state="normal")
+    def copy_all():
+        root.clipboard_clear()
+        root.clipboard_append(error_text)
+        btn_copy.config(text="Copiado!")
+    btn_copy = tk.Button(root, text="Copiar erro", command=copy_all)
+    btn_copy.pack(pady=4)
+    tk.Button(root, text="Continuar", command=root.destroy).pack(pady=4)
+    root.mainloop()
 
 
 #< Global Variables and logics
@@ -108,6 +139,8 @@ def is_logged_in_LN() -> bool:
     Function to check if user is logged-in in LinkedIn
     * Returns: `True` if user is logged-in or `False` if not
     '''
+    print_lg(f"[DEBUG] URL atual: {driver.current_url}")
+    print_lg(f"[DEBUG] Título da página: {driver.title}")
     if driver.current_url == "https://www.linkedin.com/feed/": return True
     if try_linkText(driver, "Sign in"): return False
     if try_xp(driver, '//button[@type="submit" and contains(text(), "Sign in")]'):  return False
@@ -126,7 +159,7 @@ def login_LN() -> None:
     # Find the username and password fields and fill them with user credentials
     driver.get("https://www.linkedin.com/login")
     if username == "username@example.com" and password == "example_password":
-        pyautogui.alert("User did not configure username and password in secrets.py, hence can't login automatically! Please login manually!", "Login Manually","Okay")
+        pyautogui.alert("User did not configure username and password in secrets.py, hence can't login automatically! Please login manually!", "Login Manually", button="Okay")
         print_lg("User did not configure username and password in secrets.py, hence can't login automatically! Please login manually!")
         manual_login_retry(is_logged_in_LN, 2)
         return
@@ -187,8 +220,18 @@ def set_search_location() -> None:
     '''
     if search_location.strip():
         try:
+            sleep(2)
+            wait.until(EC.presence_of_element_located((By.XPATH, "//input[not(@disabled)]")))
             print_lg(f'Setting search location as: "{search_location.strip()}"')
-            search_location_ele = try_xp(driver, ".//input[@aria-label='City, state, or zip code'and not(@disabled)]", False) #  and not(@aria-hidden='true')]")
+            search_location_ele = try_xp(driver, ".//input[@aria-label='City, state, or zip code' and not(@disabled)]", False)
+            if not search_location_ele:
+                search_location_ele = try_xp(driver, ".//input[@aria-label='Cidade, estado ou CEP' and not(@disabled)]", False)
+            if not search_location_ele:
+                search_location_ele = try_xp(driver, ".//input[contains(@aria-label,'ity') and not(@disabled)]", False)
+            if not search_location_ele:
+                search_location_ele = try_xp(driver, ".//input[contains(@aria-label,'CEP') and not(@disabled)]", False)
+            if not search_location_ele:
+                search_location_ele = try_xp(driver, ".//input[contains(@id,'jobs-search-box-location') and not(@disabled)]", False)
             text_input(actions, search_location_ele, search_location, "Search Location")
         except ElementNotInteractableException:
             try_xp(driver, ".//label[@class='jobs-search-box__input-icon jobs-search-box__keywords-label']")
@@ -212,7 +255,14 @@ def apply_filters() -> None:
     try:
         recommended_wait = 1 if click_gap < 1 else 0
 
-        wait.until(EC.presence_of_element_located((By.XPATH, '//button[normalize-space()="All filters"]'))).click()
+        all_filters_xpath = '//button[normalize-space()="All filters" or normalize-space()="Todos os filtros" or normalize-space()="Todos os Filtros" or normalize-space()="Todos os filtros "]'
+        for _ in range(3):
+            try:
+                btn = wait.until(EC.element_to_be_clickable((By.XPATH, all_filters_xpath)))
+                btn.click()
+                break
+            except Exception:
+                buffer(1)
         buffer(recommended_wait)
 
         wait_span_click(driver, sort_by)
@@ -227,7 +277,11 @@ def apply_filters() -> None:
         multi_sel_noWait(driver, on_site)
         if job_type or on_site: buffer(recommended_wait)
 
-        if easy_apply_only: boolean_button_click(driver, actions, "Easy Apply")
+        if easy_apply_only:
+            try: boolean_button_click(driver, actions, "Easy Apply")
+            except:
+                try: boolean_button_click(driver, actions, "Candidatura via LinkedIn")
+                except: pass
         
         multi_sel_noWait(driver, location)
         multi_sel_noWait(driver, industry)
@@ -248,16 +302,23 @@ def apply_filters() -> None:
         multi_sel_noWait(driver, commitments)
         if benefits or commitments: buffer(recommended_wait)
 
-        show_results_button: WebElement = driver.find_element(By.XPATH, '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show")]')
-        show_results_button.click()
+        show_results_xpath = '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "aplicar filtros") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "mostrar resultado") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "ver resultado")]'
+        for _ in range(3):
+            try:
+                show_results_button = wait.until(EC.element_to_be_clickable((By.XPATH, show_results_xpath)))
+                show_results_button.click()
+                break
+            except Exception:
+                buffer(1)
 
         global pause_after_filters
-        if pause_after_filters and "Turn off Pause after search" == pyautogui.confirm("These are your configured search results and filter. It is safe to change them while this dialog is open, any changes later could result in errors and skipping this search run.", "Please check your results", ["Turn off Pause after search", "Look's good, Continue"]):
+        if pause_after_filters and "Turn off Pause after search" == pymsgbox.confirm("These are your configured search results and filter. It is safe to change them while this dialog is open, any changes later could result in errors and skipping this search run.", "Please check your results", ["Turn off Pause after search", "Look's good, Continue"]):
             pause_after_filters = False
 
     except Exception as e:
         print_lg("Setting the preferences failed!")
-        pyautogui.confirm(f"Faced error while applying filters. Please make sure correct filters are selected, click on show results and click on any button of this dialog, I know it sucks. Can't turn off Pause after search when error occurs! ERROR: {e}", ["Doesn't look good, but Continue XD", "Look's good, Continue"])
+        print_lg(f"[DEBUG] Erro nos filtros: {e}")
+        _show_copiable_error("Erro ao aplicar filtros", f"Ajuste os filtros manualmente no Firefox e clique em 'Mostrar resultados', depois feche esta janela e clique em Continuar.\n\nERRO:\n{e}")
         # print_lg(e)
 
 
@@ -426,13 +487,58 @@ def get_job_description(
 # Function to upload resume
 def upload_resume(modal: WebElement, resume: str) -> tuple[bool, str]:
     try:
-        modal.find_element(By.NAME, "file").send_keys(os.path.abspath(resume))
-        return True, os.path.basename(default_resume_path)
-    except: return False, "Previous resume"
+        file_inputs = modal.find_elements(By.XPATH, ".//input[@type='file']")
+        for file_input in file_inputs:
+            # Get surrounding label/text to understand what this field expects
+            try:
+                container = file_input.find_element(By.XPATH, "./ancestor::div[contains(@class,'jobs-document-upload') or contains(@class,'upload')]")
+                container_text = container.text.lower()
+            except:
+                container_text = ""
+            try:
+                nearby_label = file_input.find_element(By.XPATH, "./preceding::label[1] | ./following::label[1]")
+                container_text += " " + nearby_label.text.lower()
+            except:
+                pass
+
+            if any(w in container_text for w in ['photo', 'foto', 'image', 'imagem', 'picture', 'avatar']):
+                if default_photo_path and os.path.exists(default_photo_path):
+                    file_input.send_keys(os.path.abspath(default_photo_path))
+                    print_lg(f"[DEBUG] Foto enviada: {default_photo_path}")
+                else:
+                    print_lg(f"[DEBUG] Campo de foto ignorado (arquivo não encontrado: {default_photo_path})")
+            elif any(w in container_text for w in ['cover', 'carta', 'letter']):
+                if default_cover_letter_path and os.path.exists(default_cover_letter_path):
+                    file_input.send_keys(os.path.abspath(default_cover_letter_path))
+                    print_lg(f"[DEBUG] Cover letter enviada: {default_cover_letter_path}")
+                else:
+                    print_lg(f"[DEBUG] Campo de cover letter ignorado (arquivo não encontrado: {default_cover_letter_path})")
+            else:
+                file_input.send_keys(os.path.abspath(resume))
+                return True, os.path.basename(default_resume_path)
+        return False, "Previous resume"
+    except Exception as e:
+        print_lg(f"[DEBUG] Erro no upload: {e}")
+        return False, "Previous resume"
 
 # Function to answer common questions for Easy Apply
 def answer_common_questions(label: str, answer: str) -> str:
     if 'sponsorship' in label or 'visa' in label: answer = require_visa
+    # PT-BR mappings
+    elif 'deficiência' in label or 'pcd' in label or 'pessoa com defici' in label: answer = disability_status
+    elif 'veteran' in label or 'veterano' in label: answer = veteran_status
+    elif 'indicad' in label or 'referr' in label or 'referred' in label: answer = 'Não'
+    elif 'como você teve conhecimento' in label or 'como soube' in label or 'how did you hear' in label: answer = 'LinkedIn'
+    elif 'conhecia' in label and ('empresa' in label or 'company' in label or 'flash' in label or 'marca' in label): answer = 'Não conhecia'
+    elif 'inglês' in label or 'english' in label or 'idioma' in label or 'language' in label:
+        answer = 'Fluent'
+    elif 'espanhol' in label or 'spanish' in label: answer = 'Avançado'
+    elif 'contatar' in label or 'contact me' in label or 'future job' in label or 'oportunidades futuras' in label: answer = 'Yes'
+    elif 'salary' in label or 'salário' in label or 'remuneração' in label or 'expectativa salarial' in label or 'pretensão' in label:
+        answer = str(desired_salary)
+    elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label: answer = recent_employer
+    elif 'current location' in label or 'localização atual' in label or 'onde você mora' in label: answer = current_city
+    elif 'adaptação' in label or 'acessibilidade' in label or 'accommodation' in label: answer = 'Não'
     return answer
 
 
@@ -467,26 +573,27 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
             prev_answer = selected_option
             if overwrite_previous_answers or selected_option == "Select an option":
                 ##> ------ WINDY_WINDWARD Email:karthik.sarode23@gmail.com - Added fuzzy logic to answer location based questions ------
-                if 'email' in label or 'phone' in label: 
+                if 'email' in label or 'phone' in label or 'telefone' in label:
                     answer = prev_answer
-                elif 'gender' in label or 'sex' in label: 
+                elif 'gender' in label or 'sex' in label or 'gênero' in label or 'genero' in label:
                     answer = gender
-                elif 'disability' in label: 
+                elif 'disability' in label or 'deficiência' in label or 'pcd' in label:
                     answer = disability_status
-                elif 'proficiency' in label: 
+                elif 'proficiency' in label or 'fluência' in label:
                     answer = 'Professional'
-                # Add location handling
-                elif any(loc_word in label for loc_word in ['location', 'city', 'state', 'country']):
-                    if 'country' in label:
-                        answer = country 
-                    elif 'state' in label:
+                elif 'grau de contato' in label or 'conhece' in label or 'relationship' in label:
+                    answer = 'Não'
+                elif any(loc_word in label for loc_word in ['location', 'city', 'state', 'country', 'cidade', 'estado', 'país', 'localização']):
+                    if 'country' in label or 'país' in label:
+                        answer = country
+                    elif 'state' in label or 'estado' in label:
                         answer = state
-                    elif 'city' in label:
+                    elif 'city' in label or 'cidade' in label:
                         answer = current_city if current_city else work_location
                     else:
                         answer = work_location
-                else: 
-                    answer = answer_common_questions(label,answer)
+                else:
+                    answer = answer_common_questions(label, answer)
                 try: 
                     select.select_by_visible_text(answer)
                 except NoSuchElementException as e:
@@ -549,10 +656,10 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
 
             if overwrite_previous_answers or prev_answer is None:
                 if 'citizenship' in label or 'employment eligibility' in label: answer = us_citizenship
-                elif 'veteran' in label or 'protected' in label: answer = veteran_status
-                elif 'disability' in label or 'handicapped' in label: 
+                elif 'veteran' in label or 'protected' in label or 'veterano' in label: answer = veteran_status
+                elif 'disability' in label or 'handicapped' in label or 'deficiência' in label or 'pcd' in label:
                     answer = disability_status
-                else: answer = answer_common_questions(label,answer)
+                else: answer = answer_common_questions(label, answer)
                 foundOption = try_xp(radio, f".//label[normalize-space()='{answer}']", False)
                 if foundOption: 
                     actions.move_to_element(foundOption).click().perform()
@@ -595,50 +702,46 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
 
             prev_answer = text.get_attribute("value")
             if not prev_answer or overwrite_previous_answers:
-                if 'experience' in label or 'years' in label: answer = years_of_experience
-                elif 'phone' in label or 'mobile' in label: answer = phone_number
-                elif 'street' in label: answer = street
-                elif 'city' in label or 'location' in label or 'address' in label:
+                if 'experience' in label or 'years' in label or 'anos de experiência' in label or 'anos de exp' in label: answer = years_of_experience
+                elif 'phone' in label or 'mobile' in label or 'telefone' in label or 'celular' in label: answer = phone_number
+                elif 'street' in label or 'rua' in label or 'endereço' in label: answer = street
+                elif 'city' in label or 'location' in label or 'address' in label or 'cidade' in label or 'localização' in label or 'onde você mora' in label:
                     answer = current_city if current_city else work_location
                     do_actions = True
-                elif 'signature' in label: answer = full_name # 'signature' in label or 'legal name' in label or 'your name' in label or 'full name' in label: answer = full_name     # What if question is 'name of the city or university you attend, name of referral etc?'
-                elif 'name' in label:
-                    if 'full' in label: answer = full_name
-                    elif 'first' in label and 'last' not in label: answer = first_name
-                    elif 'middle' in label and 'last' not in label: answer = middle_name
-                    elif 'last' in label and 'first' not in label: answer = last_name
-                    elif 'employer' in label: answer = recent_employer
+                elif 'signature' in label or 'assinatura' in label: answer = full_name
+                elif 'name' in label or 'nome' in label:
+                    if 'full' in label or 'completo' in label: answer = full_name
+                    elif ('first' in label or 'primeiro' in label) and 'last' not in label and 'sobrenome' not in label: answer = first_name
+                    elif 'middle' in label or 'meio' in label: answer = middle_name
+                    elif 'last' in label or 'sobrenome' in label: answer = last_name
+                    elif 'employer' in label or 'empresa' in label or 'empregador' in label: answer = recent_employer
                     else: answer = full_name
-                elif 'notice' in label:
-                    if 'month' in label:
-                        answer = notice_period_months
-                    elif 'week' in label:
-                        answer = notice_period_weeks
+                elif 'notice' in label or 'aviso prévio' in label or 'prazo' in label:
+                    if 'month' in label or 'mês' in label or 'mes' in label: answer = notice_period_months
+                    elif 'week' in label or 'semana' in label: answer = notice_period_weeks
                     else: answer = notice_period
-                elif 'salary' in label or 'compensation' in label or 'ctc' in label or 'pay' in label: 
-                    if 'current' in label or 'present' in label:
-                        if 'month' in label:
-                            answer = current_ctc_monthly
-                        elif 'lakh' in label:
-                            answer = current_ctc_lakhs
-                        else:
-                            answer = current_ctc
+                elif 'salary' in label or 'compensation' in label or 'ctc' in label or 'pay' in label or 'salário' in label or 'remuneração' in label or 'pretensão' in label or 'expectativa salarial' in label:
+                    if 'current' in label or 'present' in label or 'atual' in label:
+                        if 'month' in label or 'mensal' in label: answer = current_ctc_monthly
+                        elif 'lakh' in label: answer = current_ctc_lakhs
+                        else: answer = current_ctc
                     else:
-                        if 'month' in label:
-                            answer = desired_salary_monthly
-                        elif 'lakh' in label:
-                            answer = desired_salary_lakhs
-                        else:
-                            answer = desired_salary
+                        if 'month' in label or 'mensal' in label: answer = desired_salary_monthly
+                        elif 'lakh' in label: answer = desired_salary_lakhs
+                        else: answer = desired_salary
                 elif 'linkedin' in label: answer = linkedIn
-                elif 'website' in label or 'blog' in label or 'portfolio' in label or 'link' in label: answer = website
-                elif 'scale of 1-10' in label: answer = confidence_level
-                elif 'headline' in label: answer = linkedin_headline
-                elif ('hear' in label or 'come across' in label) and 'this' in label and ('job' in label or 'position' in label): answer = "https://github.com/GodsScion/Auto_job_applier_linkedIn"
-                elif 'state' in label or 'province' in label: answer = state
-                elif 'zip' in label or 'postal' in label or 'code' in label: answer = zipcode
-                elif 'country' in label: answer = country
-                else: answer = answer_common_questions(label,answer)
+                elif 'website' in label or 'blog' in label or 'portfolio' in label or 'portfólio' in label or 'github' in label or ('link' in label and 'linkedin' not in label): answer = website
+                elif 'scale of 1-10' in label or 'escala de 1' in label: answer = confidence_level
+                elif 'headline' in label or 'título profissional' in label: answer = linkedin_headline
+                elif ('hear' in label or 'come across' in label or 'soube' in label or 'conhecimento desta vaga' in label): answer = 'LinkedIn'
+                elif 'state' in label or 'province' in label or 'estado' in label: answer = state
+                elif 'zip' in label or 'postal' in label or 'cep' in label: answer = zipcode
+                elif 'country' in label or 'país' in label or 'pais' in label: answer = country
+                elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label or 'current employer' in label: answer = recent_employer
+                elif 'cover letter' in label or 'carta de apresentação' in label or 'carta de motivação' in label: answer = cover_letter
+                elif 'summary' in label or 'resumo' in label or 'sobre você' in label: answer = linkedin_summary
+                elif 'deficiência' in label or 'pcd' in label or 'disability' in label or 'adaptação' in label: answer = 'Não'
+                else: answer = answer_common_questions(label, answer)
                 ##> ------ Yang Li : MARKYangL - Feature ------
                 if answer == "":
                     if use_AI and aiClient:
@@ -873,7 +976,8 @@ def apply_to_jobs(search_terms: list[str]) -> None:
 
     if randomize_search_order:  shuffle(search_terms)
     for searchTerm in search_terms:
-        driver.get(f"https://www.linkedin.com/jobs/search/?keywords={searchTerm}")
+        easy_apply_param = "&f_AL=true" if easy_apply_only else ""
+        driver.get(f"https://www.linkedin.com/jobs/search/?keywords={searchTerm}{easy_apply_param}")
         print_lg("\n________________________________________________________________________________________________________________________\n")
         print_lg(f'\n>>>> Now searching for "{searchTerm}" <<<<\n\n')
 
@@ -1057,7 +1161,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                     if next_counter >= 15: 
                                         if pause_at_failed_question:
                                             screenshot(driver, job_id, "Needed manual intervention for failed question")
-                                            pyautogui.alert("Couldn't answer one or more questions.\nPlease click \"Continue\" once done.\nDO NOT CLICK Back, Next or Review button in LinkedIn.\n\n\n\n\nYou can turn off \"Pause at failed question\" setting in config.py", "Help Needed", "Continue")
+                                            pyautogui.alert("Couldn't answer one or more questions.\nPlease click \"Continue\" once done.\nDO NOT CLICK Back, Next or Review button in LinkedIn.\n\n\n\n\nYou can turn off \"Pause at failed question\" setting in config.py", "Help Needed", button="Continue")
                                             next_counter = 1
                                             continue
                                         if questions_list: print_lg("Stuck for one or some of the following questions...", questions_list)
@@ -1066,10 +1170,27 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                         raise Exception("Seems like stuck in a continuous loop of next, probably because of new questions.")
                                     questions_list = answer_questions(modal, questions_list, work_location, job_description=description)
                                     if useNewResume and not uploaded: uploaded, resume = upload_resume(modal, default_resume_path)
-                                    try: next_button = modal.find_element(By.XPATH, './/span[normalize-space(.)="Review"]') 
-                                    except NoSuchElementException:  next_button = modal.find_element(By.XPATH, './/button[contains(span, "Next")]')
-                                    try: next_button.click()
-                                    except ElementClickInterceptedException: break    # Happens when it tries to click Next button in About Company photos section
+                                    # Re-fetch modal to avoid StaleElementReferenceException
+                                    try: modal = find_by_class(driver, "jobs-easy-apply-modal")
+                                    except: pass
+                                    # Try Review button first (PT-BR + EN), then Next
+                                    review_xp = './/span[normalize-space(.)="Review" or normalize-space(.)="Revisar" or normalize-space(.)="Revisão"]'
+                                    next_xp = './/button[.//span[normalize-space(.)="Next" or normalize-space(.)="Próximo" or normalize-space(.)="Avançar"]]'
+                                    try:
+                                        next_button = modal.find_element(By.XPATH, review_xp)
+                                    except NoSuchElementException:
+                                        try:
+                                            next_button = modal.find_element(By.XPATH, next_xp)
+                                        except NoSuchElementException:
+                                            next_button = None
+                                    if next_button:
+                                        try: next_button.click()
+                                        except ElementClickInterceptedException: break
+                                        except:
+                                            try: driver.execute_script("arguments[0].click();", next_button)
+                                            except: break
+                                    else:
+                                        break
                                     buffer(click_gap)
 
                             except NoSuchElementException: errored = "nose"
@@ -1080,15 +1201,15 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                 wait_span_click(driver, "Review", 1, scrollTop=True)
                                 cur_pause_before_submit = pause_before_submit
                                 if errored != "stuck" and cur_pause_before_submit:
-                                    decision = pyautogui.confirm('1. Please verify your information.\n2. If you edited something, please return to this final screen.\n3. DO NOT CLICK "Submit Application".\n\n\n\n\nYou can turn off "Pause before submit" setting in config.py\nTo TEMPORARILY disable pausing, click "Disable Pause"', "Confirm your information",["Disable Pause", "Discard Application", "Submit Application"])
-                                    if decision == "Discard Application": raise Exception("Job application discarded by user!")
-                                    pause_before_submit = False if "Disable Pause" == decision else True
+                                    decision = pymsgbox.confirm('1. Verifique suas informações.\n2. Se editou algo, volte a esta tela final.\n3. NÃO clique em "Submit Application".\n\nPara desativar esta pausa, clique em "Desativar Pausa"', "Confirme suas informações", ["Desativar Pausa", "Descartar Candidatura", "Enviar Candidatura"])
+                                    if decision == "Descartar Candidatura": raise Exception("Job application discarded by user!")
+                                    pause_before_submit = False if "Desativar Pausa" == decision else True
                                     # try_xp(modal, ".//span[normalize-space(.)='Review']")
                                 follow_company(modal)
                                 if wait_span_click(driver, "Submit application", 2, scrollTop=True): 
                                     date_applied = datetime.now()
                                     if not wait_span_click(driver, "Done", 2): actions.send_keys(Keys.ESCAPE).perform()
-                                elif errored != "stuck" and cur_pause_before_submit and "Yes" in pyautogui.confirm("You submitted the application, didn't you 😒?", "Failed to find Submit Application!", ["Yes", "No"]):
+                                elif errored != "stuck" and cur_pause_before_submit and "Sim" in pymsgbox.confirm("Você enviou a candidatura?", "Confirmar envio", ["Sim", "Não"]):
                                     date_applied = datetime.now()
                                     wait_span_click(driver, "Done", 2)
                                 else:
@@ -1172,7 +1293,7 @@ chatGPT_tab = False
 linkedIn_tab = False
 
 def main() -> None:
-    pyautogui.alert("Please consider sponsoring this project at:\n\nhttps://github.com/sponsors/GodsScion\n\n", "Support the project", "Okay")
+    # pyautogui.alert("Please consider sponsoring this project at:\n\nhttps://github.com/sponsors/GodsScion\n\n", "Support the project", "Okay")
     total_runs = 1
     try:
         global linkedIn_tab, tabs_count, useNewResume, aiClient
@@ -1273,11 +1394,11 @@ def main() -> None:
             timeSaved += 60
             timeSavedMsg = f"In this run, you saved approx {round(timeSaved/60)} mins ({timeSaved} secs), please consider supporting the project."
         msg = f"{quotes}\n\n\n{timeSavedMsg}\nYou can also get your quote and name shown here, or prioritize your bug reports by supporting the project at:\n\nhttps://github.com/sponsors/GodsScion\n\n\nSummary:\n{summary}\n\n\nBest regards,\nSai Vignesh Golla\nhttps://www.linkedin.com/in/saivigneshgolla/\n\nTop Sponsors:\n{sponsors}"
-        pyautogui.alert(msg, "Exiting..")
+        pymsgbox.alert(msg, "Encerrando")
         print_lg(msg,"Closing the browser...")
         if tabs_count >= 10:
             msg = "NOTE: IF YOU HAVE MORE THAN 10 TABS OPENED, PLEASE CLOSE OR BOOKMARK THEM!\n\nOr it's highly likely that application will just open browser and not do anything next time!" 
-            pyautogui.alert(msg,"Info")
+            pymsgbox.alert(msg, "Info")
             print_lg("\n"+msg)
         ##> ------ Yang Li : MARKYangL - Feature ------
         if use_AI and aiClient:

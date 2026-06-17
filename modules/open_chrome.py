@@ -6,7 +6,7 @@ Copyright (C) 2024 Sai Vignesh Golla
 
 License:    GNU Affero General Public License
             https://www.gnu.org/licenses/agpl-3.0.en.html
-            
+
 GitHub:     https://github.com/GodsScion/Auto_job_applier_linkedIn
 
 Support me: https://github.com/sponsors/GodsScion
@@ -14,62 +14,108 @@ Support me: https://github.com/sponsors/GodsScion
 version:    26.01.20.5.08
 '''
 
-from modules.helpers import get_default_temp_profile, make_directories
-from config.settings import run_in_background, stealth_mode, disable_extensions, safe_mode, file_name, failed_file_name, logs_folder_path, generated_resume_path
+import sys
+import os
+from modules.helpers import get_default_temp_profile, make_directories, critical_error_log, print_lg
+from config.settings import run_in_background, disable_extensions, file_name, failed_file_name, logs_folder_path, generated_resume_path
 from config.questions import default_resume_path
-if stealth_mode:
-    import undetected_chromedriver as uc
-else: 
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    # from selenium.webdriver.chrome.service import Service
+
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
-from modules.helpers import find_default_profile_directory, critical_error_log, print_lg
 from selenium.common.exceptions import SessionNotCreatedException
 
-def createChromeSession(isRetry: bool = False):
-    make_directories([file_name,failed_file_name,logs_folder_path+"/screenshots",default_resume_path,generated_resume_path+"/temp"])
-    # Set up WebDriver with Chrome Profile
-    options = uc.ChromeOptions() if stealth_mode else Options()
-    if run_in_background:   options.add_argument("--headless")
-    if disable_extensions:  options.add_argument("--disable-extensions")
+BROWSER = os.environ.get("VAGUINHAS_BROWSER", "firefox").lower()
 
-    print_lg("IF YOU HAVE MORE THAN 10 TABS OPENED, PLEASE CLOSE OR BOOKMARK THEM! Or it's highly likely that application will just open browser and not do anything!")
-    profile_dir = find_default_profile_directory()
-    if isRetry:
-        print_lg("Will login with a guest profile, browsing history will not be saved in the browser!")
-    elif profile_dir and not safe_mode:
-        options.add_argument(f"--user-data-dir={profile_dir}")
+
+def createChromeSession(isRetry: bool = False):
+    make_directories([file_name, failed_file_name, logs_folder_path+"/screenshots", default_resume_path, generated_resume_path+"/temp"])
+
+    if BROWSER == "chrome":
+        return _open_chrome(isRetry)
     else:
-        print_lg("Logging in with a guest profile, Web history will not be saved!")
-        options.add_argument(f"--user-data-dir={get_default_temp_profile()}")
-    if stealth_mode:
-        # try: 
-        #     driver = uc.Chrome(driver_executable_path="C:\\Program Files\\Google\\Chrome\\chromedriver-win64\\chromedriver.exe", options=options)
-        # except (FileNotFoundError, PermissionError) as e: 
-        #     print_lg("(Undetected Mode) Got '{}' when using pre-installed ChromeDriver.".format(type(e).__name__)) 
-            print_lg("Downloading Chrome Driver... This may take some time. Undetected mode requires download every run!")
-            driver = uc.Chrome(options=options)
-    else: driver = webdriver.Chrome(options=options) #, service=Service(executable_path="C:\\Program Files\\Google\\Chrome\\chromedriver-win64\\chromedriver.exe"))
+        return _open_firefox(isRetry)
+
+
+def _open_firefox(isRetry: bool = False):
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options as FirefoxOptions
+    from selenium.webdriver.firefox.service import Service as FirefoxService
+    from webdriver_manager.firefox import GeckoDriverManager
+
+    options = FirefoxOptions()
+    if run_in_background:
+        options.add_argument("--headless")
+    if disable_extensions:
+        options.set_preference("extensions.enabled", False)
+
+    options.binary_location = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+
+    if not isRetry:
+        profile_dir = r"C:\Users\icaro\AppData\Roaming\Mozilla\Firefox\Profiles\81fsqb6w.default-release"
+        if os.path.exists(profile_dir):
+            options.add_argument("-profile")
+            options.add_argument(profile_dir)
+            print_lg(f"[DEBUG] Perfil Firefox carregado: {profile_dir}")
+        else:
+            print_lg(f"[DEBUG] PERFIL NAO ENCONTRADO: {profile_dir}")
+    else:
+        print_lg("[DEBUG] Abrindo Firefox sem perfil (retry)...")
+
+    print_lg("[DEBUG] Iniciando GeckoDriver...")
+    service = FirefoxService(GeckoDriverManager().install())
+    driver = webdriver.Firefox(service=service, options=options)
+    print_lg(f"[DEBUG] Firefox aberto. URL: {driver.current_url}")
     driver.maximize_window()
     wait = WebDriverWait(driver, 5)
     actions = ActionChains(driver)
     return options, driver, actions, wait
 
+
+def _open_chrome(isRetry: bool = False):
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    from webdriver_manager.chrome import ChromeDriverManager
+
+    options = ChromeOptions()
+    if run_in_background:
+        options.add_argument("--headless=new")
+    if disable_extensions:
+        options.add_argument("--disable-extensions")
+
+    if not isRetry:
+        profile_path = str(os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "User Data"))
+        options.add_argument(f"--user-data-dir={profile_path}")
+        options.add_argument("--profile-directory=Default")
+        print_lg(f"[DEBUG] Perfil Chrome carregado: {profile_path}")
+    else:
+        print_lg("[DEBUG] Abrindo Chrome sem perfil (retry)...")
+
+    print_lg("[DEBUG] Iniciando ChromeDriver...")
+    service = ChromeService(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    print_lg(f"[DEBUG] Chrome aberto. URL: {driver.current_url}")
+    driver.maximize_window()
+    wait = WebDriverWait(driver, 5)
+    actions = ActionChains(driver)
+    return options, driver, actions, wait
+
+
 try:
     options, driver, actions, wait = None, None, None, None
+    print_lg(f"[DEBUG] Usando navegador: {BROWSER}")
     options, driver, actions, wait = createChromeSession()
 except SessionNotCreatedException as e:
-    critical_error_log("Failed to create Chrome Session, retrying with guest profile", e)
+    critical_error_log(f"Falha ao criar sessão {BROWSER}, tentando sem perfil", e)
     options, driver, actions, wait = createChromeSession(True)
 except Exception as e:
-    msg = 'Seems like Google Chrome is out dated. Update browser and try again! \n\n\nIf issue persists, try Safe Mode. Set, safe_mode = True in config.py \n\nPlease check GitHub discussions/support for solutions https://github.com/GodsScion/Auto_job_applier_linkedIn \n                                   OR \nReach out in discord ( https://discord.gg/fFp7uUzWCY )'
-    if isinstance(e,TimeoutError): msg = "Couldn't download Chrome-driver. Set stealth_mode = False in config!"
+    if BROWSER == "chrome":
+        msg = 'Erro ao abrir Chrome. Verifique se o Chrome está instalado.'
+    else:
+        msg = 'Erro ao abrir Firefox. Verifique se o Firefox está instalado em C:\\Program Files\\Mozilla Firefox\\'
     print_lg(msg)
-    critical_error_log("In Opening Chrome", e)
-    from pyautogui import alert
-    alert(msg, "Error in opening chrome")
+    critical_error_log(f"Erro ao abrir {BROWSER}", e)
+    import pymsgbox
+    pymsgbox.alert(msg, f"Erro ao abrir {BROWSER}")
     try: driver.quit()
-    except NameError: exit()
-    
+    except: exit()
