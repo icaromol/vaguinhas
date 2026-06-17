@@ -717,14 +717,15 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
             except: pass
             answer = 'Yes'
             label = label_org.lower()
-            select = Select(select)
-            selected_option = select.first_selected_option.text
+            _select_obj = Select(select)
+            selected_option = _select_obj.first_selected_option.text
             optionsText = []
             options = '"List of phone country codes"'
             if label != "phone country code":
-                optionsText = [option.text for option in select.options]
-                options = "".join([f' "{option}",' for option in optionsText])
+                optionsText = [opt.text for opt in _select_obj.options]
+                options = "".join([f' "{opt}",' for opt in optionsText])
             prev_answer = selected_option
+            del _select_obj  # don't hold stale reference; re-fetch before selecting
             if overwrite_previous_answers or selected_option == "Select an option":
                 if 'email' in label or 'phone' in label or 'telefone' in label:
                     answer = prev_answer
@@ -756,6 +757,17 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 else:
                     answer = answer_common_questions(label, answer)
 
+                def _fresh_select() -> Select:
+                    '''Re-fetch the select element fresh from DOM to avoid stale reference.'''
+                    el = try_xp(Question, ".//select", False)
+                    return Select(el) if el else None
+
+                def _do_select_by_text(text: str) -> bool:
+                    s = _fresh_select()
+                    if not s: return False
+                    s.select_by_visible_text(text)
+                    return True
+
                 # Fuzzy match — inclui equivalentes PT para Yes/No
                 def _select_fuzzy(ans: str) -> tuple:
                     if ans == 'Decline':
@@ -769,8 +781,8 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     for phrase in phrases:
                         for option in optionsText:
                             if phrase.lower() in option.lower() or option.lower() in phrase.lower():
-                                select.select_by_visible_text(option)
-                                return True, option
+                                if _do_select_by_text(option):
+                                    return True, option
                     return False, ans
 
                 foundOption = False
@@ -778,8 +790,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     pass  # answer is empty — skip direct match, let AI or required-fallback handle it
                 else:
                     try:
-                        select.select_by_visible_text(answer)
-                        foundOption = True
+                        foundOption = _do_select_by_text(answer)
                     except NoSuchElementException:
                         foundOption, answer = _select_fuzzy(answer)
 
@@ -800,11 +811,11 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                             if ai_ans:
                                 for opt in optionsText:
                                     if str(ai_ans).lower() in opt.lower() or opt.lower() in str(ai_ans).lower():
-                                        select.select_by_visible_text(opt)
-                                        answer = opt
-                                        foundOption = True
-                                        print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{opt}"')
-                                        break
+                                        if _do_select_by_text(opt):
+                                            answer = opt
+                                            foundOption = True
+                                            print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{opt}"')
+                                            break
                             if not foundOption:
                                 print_lg(f'  IA não encontrou match. Resposta da IA: "{ai_ans}"')
                         except Exception as e:
@@ -812,8 +823,10 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                     if not foundOption:
                         if required:
                             print_lg(f'  Respondendo aleatoriamente (campo obrigatório).')
-                            select.select_by_index(randint(1, len(select.options)-1))
-                            answer = select.first_selected_option.text
+                            s = _fresh_select()
+                            if s:
+                                s.select_by_index(randint(1, len(s.options)-1))
+                                answer = s.first_selected_option.text
                             randomly_answered_questions.add((f'{label_org} [ {options} ]',"select"))
                         else:
                             print_lg(f'  Campo opcional — pulando.')
@@ -831,16 +844,36 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
             answer = 'Yes'
             label = label_org.lower()
 
+            # Collect option metadata (text + value) but NOT element references — those go stale
             label_org += ' [ '
-            options = radio.find_elements(By.TAG_NAME, 'input')
-            options_labels = []
-            
-            for option in options:
-                id = option.get_attribute("id")
-                option_label = try_xp(radio, f'.//label[@for="{id}"]', False)
-                options_labels.append( f'"{option_label.text if option_label else "Unknown"}"<{option.get_attribute("value")}>' ) # Saving option as "label <value>"
-                if option.is_selected(): prev_answer = options_labels[-1]
-                label_org += f' {options_labels[-1]},'
+            options_meta = []  # list of (label_text, value, input_id)
+            for option in radio.find_elements(By.TAG_NAME, 'input'):
+                opt_id = option.get_attribute("id")
+                opt_val = option.get_attribute("value") or ""
+                opt_label_el = try_xp(radio, f'.//label[@for="{opt_id}"]', False)
+                opt_text = opt_label_el.text if opt_label_el else "Unknown"
+                opt_entry = f'"{opt_text}"<{opt_val}>'
+                options_meta.append((opt_text, opt_val, opt_id, opt_entry))
+                if option.is_selected(): prev_answer = opt_entry
+                label_org += f' {opt_entry},'
+            options_labels = [m[3] for m in options_meta]  # legacy format for questions_list
+
+            def _click_radio_by_id(opt_id: str) -> bool:
+                '''Re-fetch the radio input by id and click its label — avoids stale reference.'''
+                try:
+                    fresh_radio = try_xp(Question, './/fieldset[@data-test-form-builder-radio-button-form-component="true"]', False)
+                    if not fresh_radio: fresh_radio = Question
+                    lbl = try_xp(fresh_radio, f'.//label[@for="{opt_id}"]', False)
+                    if lbl:
+                        actions.move_to_element(lbl).click().perform()
+                        return True
+                    inp = try_xp(fresh_radio, f'.//input[@id="{opt_id}"]', False)
+                    if inp:
+                        actions.move_to_element(inp).click().perform()
+                        return True
+                except Exception as e:
+                    print_lg(f'  _click_radio_by_id falhou para id={opt_id}: {e}')
+                return False
 
             if overwrite_previous_answers or prev_answer is None:
                 if 'citizenship' in label or 'employment eligibility' in label: answer = us_citizenship
@@ -848,31 +881,35 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 elif 'disability' in label or 'handicapped' in label or 'deficiência' in label or 'pcd' in label:
                     answer = disability_status
                 else: answer = answer_common_questions(label, answer)
-                foundOption = try_xp(radio, f".//label[normalize-space()='{answer}']", False)
-                if foundOption: 
-                    actions.move_to_element(foundOption).click().perform()
-                else:    
+
+                # Try exact label match first (re-fetches element fresh)
+                clicked = False
+                matched_answer = answer
+                if answer:
+                    fresh_radio = try_xp(Question, './/fieldset[@data-test-form-builder-radio-button-form-component="true"]', False)
+                    if fresh_radio:
+                        foundLabel = try_xp(fresh_radio, f".//label[normalize-space()='{answer}']", False)
+                        if foundLabel:
+                            try:
+                                actions.move_to_element(foundLabel).click().perform()
+                                clicked = True
+                            except Exception:
+                                pass
+
+                if not clicked:
                     possible_answer_phrases = ["Decline", "not wish", "don't wish", "Prefer not", "not want"] if answer == 'Decline' else [answer]
-                    ele = options[0]
-                    answer = options_labels[0]
+                    matched_id = None
+                    raw_options = [m[0] for m in options_meta]
+
                     for phrase in possible_answer_phrases:
-                        for i, option_label in enumerate(options_labels):
-                            if phrase in option_label:
-                                foundOption = options[i]
-                                ele = foundOption
-                                answer = f'Decline ({option_label})' if len(possible_answer_phrases) > 1 else option_label
+                        for opt_text, opt_val, opt_id, opt_entry in options_meta:
+                            if phrase.lower() in opt_entry.lower():
+                                matched_id = opt_id
+                                matched_answer = opt_text
                                 break
-                        if foundOption: break
-                    # if answer == 'Decline':
-                    #     answer = options_labels[0]
-                    #     for phrase in ["Prefer not", "not want", "not wish"]:
-                    #         foundOption = try_xp(radio, f".//label[normalize-space()='{phrase}']", False)
-                    #         if foundOption:
-                    #             answer = f'Decline ({phrase})'
-                    #             ele = foundOption
-                    #             break
-                    if not foundOption:
-                        raw_options = [ol.split('"')[1] for ol in options_labels if '"' in ol]
+                        if matched_id: break
+
+                    if not matched_id:
                         print_lg(f'[RADIO FALHOU] Pergunta: "{label_org}"')
                         print_lg(f'  Tentou responder: "{answer}"')
                         print_lg(f'  Opções disponíveis: {raw_options}')
@@ -887,20 +924,27 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                                 else:
                                     ai_ans = None
                                 if ai_ans:
-                                    for i, option_label in enumerate(options_labels):
-                                        if str(ai_ans).lower() in option_label.lower() or option_label.lower() in str(ai_ans).lower():
-                                            ele = options[i]
-                                            answer = options_labels[i]
-                                            foundOption = True
-                                            print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{answer}"')
+                                    for opt_text, opt_val, opt_id, opt_entry in options_meta:
+                                        if str(ai_ans).lower() in opt_text.lower() or opt_text.lower() in str(ai_ans).lower():
+                                            matched_id = opt_id
+                                            matched_answer = opt_text
+                                            print_lg(f'  IA respondeu: "{ai_ans}" → selecionou "{opt_text}"')
                                             break
-                                if not foundOption:
+                                if not matched_id:
                                     print_lg(f'  IA não encontrou match. Resposta da IA: "{ai_ans}"')
                             except Exception as e:
                                 print_lg(f'  IA falhou: {e}')
-                    if foundOption or required:
-                        actions.move_to_element(ele).click().perform()
-                        if not foundOption: randomly_answered_questions.add((f'{label_org} ]',"radio"))
+
+                    if matched_id:
+                        clicked = _click_radio_by_id(matched_id)
+                        answer = matched_answer
+                    elif required:
+                        # Fallback: click first option by re-fetching fresh
+                        first_id = options_meta[0][2] if options_meta else None
+                        if first_id:
+                            _click_radio_by_id(first_id)
+                            answer = options_meta[0][0]
+                        randomly_answered_questions.add((f'{label_org} ]', "radio"))
                     else:
                         print_lg(f'  Campo opcional — pulando.')
             else: answer = prev_answer
