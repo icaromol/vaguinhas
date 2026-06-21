@@ -50,8 +50,8 @@ us_citizenship = "Other"
 ## SOME ANNOYING QUESTIONS BY COMPANIES 🫠 ##
 
 # What to enter in your desired salary question (American and European), What is your expected CTC (South Asian and others)?, only enter in numbers as some companies only allow numbers,
-desired_salary = 180000           # PJ salary — 80000, 90000, 100000 or 120000 and so on... Do NOT use quotes
-desired_salary_clt = 120000       # CLT salary — separate value for CLT contract questions. Do NOT use quotes
+desired_salary = 120000           # PJ salary pleno — ~R$10k/mês. Do NOT use quotes
+desired_salary_clt = 84000        # CLT salary pleno — ~R$7k/mês (R$6k–R$8k). Do NOT use quotes
 '''
 Note: If question has the word "lakhs" in it (Example: What is your expected CTC in lakhs), 
 then it will add '.' before last 5 digits and answer. Examples: 
@@ -171,7 +171,7 @@ IDIOMAS: Português (nativo), Inglês (profissional completo), Espanhol (profiss
 
 PREMIAÇÕES: Inovativa Brasil, Ibmec Hubs
 ANOS DE EXPERIÊNCIA: 5
-PRETENSÃO SALARIAL: R$180.000/ano
+PRETENSÃO SALARIAL: R$84.000/ano CLT | R$120.000/ano PJ
 DISPONIBILIDADE: imediata
 """
 
@@ -206,7 +206,7 @@ LANGUAGES: Portuguese (native), English (professional), Spanish (professional), 
 
 AWARDS: Inovativa Brasil, Ibmec Hubs
 YEARS OF EXPERIENCE: 5
-SALARY EXPECTATION: R$180,000/year
+SALARY EXPECTATION: R$84,000/year CLT | R$120,000/year PJ
 AVAILABILITY: immediate
 """
 ##<

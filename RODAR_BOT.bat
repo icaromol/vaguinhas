@@ -40,18 +40,21 @@ goto start_bot
 
 :use_firefox
 echo.
-echo Fechando Firefox existente...
-taskkill /F /IM firefox.exe >nul 2>&1
-taskkill /F /IM firefox.exe >nul 2>&1
-timeout /t 5 /nobreak >nul
-:wait_firefox
 tasklist /FI "IMAGENAME eq firefox.exe" 2>nul | find /I "firefox.exe" >nul
 if %errorlevel%==0 (
-    echo Aguardando Firefox fechar...
-    timeout /t 2 /nobreak >nul
-    goto wait_firefox
+    echo Fechando Firefox existente...
+    taskkill /F /IM firefox.exe >nul 2>&1
+    taskkill /F /IM firefox.exe >nul 2>&1
+    timeout /t 5 /nobreak >nul
+    :wait_firefox
+    tasklist /FI "IMAGENAME eq firefox.exe" 2>nul | find /I "firefox.exe" >nul
+    if %errorlevel%==0 (
+        echo Aguardando Firefox fechar...
+        timeout /t 2 /nobreak >nul
+        goto wait_firefox
+    )
+    echo Firefox fechado.
 )
-echo Firefox fechado.
 set VAGUINHAS_BROWSER=firefox
 goto start_bot
 
