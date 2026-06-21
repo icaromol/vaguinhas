@@ -94,12 +94,20 @@ def _show_copiable_error(title: str, message: str) -> None:
 _pause_event = threading.Event()  # set = running, clear = paused
 _pause_event.set()
 
+def _pause_and_wait(message: str) -> None:
+    _pause_event.clear()
+    print(f"\n>>> {message} <<<\n")
+    if not _pause_event.wait(timeout=7200):  # 2h max — desbloqueia mesmo se stdin morreu
+        print("\n[PAUSA] Timeout de 2h atingido. Retomando automaticamente.\n")
+        _pause_event.set()
+
 def _pause_listener():
     print("\n[PAUSA] Digite 'p' + ENTER a qualquer momento para pausar/retomar o bot.\n")
     while True:
         try:
             line = input().strip().lower()
         except EOFError:
+            _pause_event.set()  # desbloqueia main thread se estava pausado
             break
         if line == 'p':
             if _pause_event.is_set():
@@ -110,8 +118,8 @@ def _pause_listener():
                 print("\n>>> BOT RETOMADO. <<<\n")
 
 _pause_thread = threading.Thread(target=_pause_listener, daemon=True)
-_pause_thread.start()
 #>
+
 
 #< Global Variables and logics
 
@@ -294,64 +302,75 @@ def apply_filters() -> None:
 
         if not panel_opened:
             print_lg("Filter panel failed to open!")
-            _pause_event.clear()
-            print("\n>>> PAINEL DE FILTROS NÃO ABRIU. Aplique os filtros manualmente no LinkedIn e clique em 'Mostrar resultados'. Depois digite 'p' + ENTER para retomar. <<<\n")
-            _pause_event.wait()
+            _pause_and_wait("PAINEL DE FILTROS NÃO ABRIU. Aplique os filtros manualmente no LinkedIn e clique em 'Mostrar resultados'. Depois digite 'p' + ENTER para retomar.")
             return
 
         buffer(recommended_wait)
 
         filter_failures = 0
 
+        def _try_multi(texts: list, act=None) -> int:
+            failed = 0
+            for text in texts:
+                try:
+                    btn = driver.find_element(By.XPATH, './/span[normalize-space(.)="'+text+'"]')
+                    scroll_to_view(driver, btn)
+                    btn.click()
+                    buffer(click_gap)
+                except Exception:
+                    if act: company_search_click(driver, act, text)
+                    else:
+                        print_lg(f"Click Failed! Didn't find '{text}'")
+                        failed += 1
+            return failed
+
+        def _try_bool(text: str) -> int:
+            try:
+                boolean_button_click(driver, actions, text)
+                return 0
+            except Exception:
+                return 1
+
         if sort_by and not wait_span_click(driver, sort_by): filter_failures += 1
         if date_posted and not wait_span_click(driver, date_posted): filter_failures += 1
         buffer(recommended_wait)
 
-        multi_sel_noWait(driver, experience_level)
-        multi_sel_noWait(driver, companies, actions)
+        filter_failures += _try_multi(experience_level)
+        _try_multi(companies, actions)
         if experience_level or companies: buffer(recommended_wait)
 
-        multi_sel_noWait(driver, job_type)
-        multi_sel_noWait(driver, on_site)
+        filter_failures += _try_multi(job_type)
+        filter_failures += _try_multi(on_site)
         if job_type or on_site: buffer(recommended_wait)
 
         if easy_apply_only:
-            easy_applied_ok = False
-            try:
-                boolean_button_click(driver, actions, "Easy Apply")
-                easy_applied_ok = True
-            except:
-                try:
-                    boolean_button_click(driver, actions, "Candidatura via LinkedIn")
-                    easy_applied_ok = True
-                except: pass
-            if not easy_applied_ok: filter_failures += 1
+            if _try_bool("Easy Apply") and _try_bool("Candidatura via LinkedIn"):
+                filter_failures += 1
 
-        multi_sel_noWait(driver, location)
-        multi_sel_noWait(driver, industry)
+        filter_failures += _try_multi(location)
+        _try_multi(industry)
         if location or industry: buffer(recommended_wait)
 
-        multi_sel_noWait(driver, job_function)
-        multi_sel_noWait(driver, job_titles)
+        _try_multi(job_function)
+        _try_multi(job_titles)
         if job_function or job_titles: buffer(recommended_wait)
 
-        if under_10_applicants: boolean_button_click(driver, actions, "Under 10 applicants")
-        if in_your_network: boolean_button_click(driver, actions, "In your network")
-        if fair_chance_employer: boolean_button_click(driver, actions, "Fair Chance Employer")
+        if under_10_applicants: filter_failures += _try_bool("Under 10 applicants")
+        if in_your_network: filter_failures += _try_bool("In your network")
+        if fair_chance_employer: filter_failures += _try_bool("Fair Chance Employer")
 
-        wait_span_click(driver, salary)
+        if salary and not wait_span_click(driver, salary): filter_failures += 1
         buffer(recommended_wait)
 
-        multi_sel_noWait(driver, benefits)
-        multi_sel_noWait(driver, commitments)
+        _try_multi(benefits)
+        _try_multi(commitments)
         if benefits or commitments: buffer(recommended_wait)
 
         print_lg(f"[DEBUG] filter_failures = {filter_failures}")
         if filter_failures > 0:
             print_lg(f"Setting the preferences failed! {filter_failures} filter(s) could not be applied.")
-            _pause_event.clear()
-            print(f"\n>>> {filter_failures} FILTRO(S) FALHARAM. Aplique-os manualmente no LinkedIn e clique em 'Mostrar resultados'. Depois digite 'p' + ENTER para retomar. <<<\n")
-            _pause_event.wait()
+            _pause_and_wait(f"{filter_failures} FILTRO(S) FALHARAM. Aplique-os manualmente no LinkedIn e clique em 'Mostrar resultados'. Depois digite 'p' + ENTER para retomar.")
+            return  # usuário já clicou Show Results manualmente
 
         show_results_xpath = '//button[contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "apply current filters to show") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "aplicar filtros") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "mostrar resultado") or contains(translate(@aria-label, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "ver resultado")]'
         for _ in range(3):
@@ -370,9 +389,7 @@ def apply_filters() -> None:
         print_lg("Setting the preferences failed!")
         print_lg(f"[DEBUG] Erro nos filtros: {e}")
         _show_copiable_error("Erro ao aplicar filtros", f"Ajuste os filtros manualmente no Firefox e clique em 'Mostrar resultados', depois feche esta janela e clique em Continuar.\n\nERRO:\n{e}")
-        _pause_event.clear()
-        print("\n>>> FILTROS FALHARAM. Aplique os filtros manualmente no LinkedIn e digite 'p' + ENTER para retomar. <<<\n")
-        _pause_event.wait()
+        _pause_and_wait("FILTROS FALHARAM. Aplique os filtros manualmente no LinkedIn e clique em 'Mostrar resultados'. Depois digite 'p' + ENTER para retomar.")
 
 
 
@@ -749,10 +766,10 @@ def answer_common_questions(label: str, answer: str) -> str:
     elif ('pagamento' in label or 'payment' in label or 'meios de pagamento' in label):
         answer = 'Não'
     # PO / PM in banking / financial systems experience — Yes
-    elif ('product owner' in label or 'po' in label or 'atuou' in label or 'atuado' in label or 'conhecimento' in label or 'experiência' in label or 'experience' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
+    elif ('product owner' in label or 'po' in re.split(r'\W+', label) or 'atuou como po' in label or 'atuou como product owner' in label) and ('banc' in label or 'financ' in label or 'banking' in label or 'financial' in label):
         answer = 'Sim'
     # Product Owner experience (generic)
-    elif ('product owner' in label or 'po' in label or 'atuou como po' in label or 'atuou como product' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
+    elif ('product owner' in label or 'po' in re.split(r'\W+', label) or 'atuou como po' in label or 'atuou como product owner' in label) and ('sistem' in label or 'produto' in label or 'product' in label):
         answer = 'Sim'
     # Availability (office, hybrid, on-site, city office days) — always Yes
     elif ('disponib' in label or 'availab' in label) and ('escritório' in label or 'office' in label or 'rj' in label or 'rio de janeiro' in label or 'presencial' in label or 'sp' in label or 'são paulo' in label or 'bh' in label or 'belo horizonte' in label or 'paulista' in label or 'consolação' in label):
@@ -1159,7 +1176,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                 elif 'cover letter' in label or 'carta de apresentação' in label or 'carta de motivação' in label: answer = get_cover_letter_text()
                 elif 'summary' in label or 'resumo' in label or 'sobre você' in label: answer = get_linkedin_summary_text()
                 elif 'deficiência' in label or 'pcd' in label or 'disability' in label or 'adaptação' in label: answer = 'Não'
-                elif 'cpf' in label: answer = "***CPF_REMOVIDO***"
+                elif 'cpf' in label: answer = cpf
                 else: answer = answer_common_questions(label, answer)
                 ##> ------ Yang Li : MARKYangL - Feature ------
                 if answer == "":
@@ -1213,7 +1230,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
         if text_area:
             do_actions = False  # reset — do_actions from text block must not leak here
             label_org = "Unknown"
-            for label_xpath in [".//label[@for]", ".//label", ".//span[@class and not(ancestor::button)]", ".//p"]:
+            for label_xpath in [".//label[@for]", ".//label", ".//span[not(contains(@class,'artdeco-hoverable')) and not(contains(@class,'visually-hidden')) and not(contains(@class,'icon')) and @class and not(ancestor::button)]", ".//p[not(contains(@class,'helper'))]"]:
                 label_el = try_xp(Question, label_xpath, False)
                 try:
                     if label_el and label_el.text.strip():
@@ -1240,7 +1257,7 @@ def answer_questions(modal: WebElement, questions_list: set, work_location: str,
                             elif ai_provider.lower() == "deepseek":
                                 answer = deepseek_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=user_info_with_letter)
                             elif ai_provider.lower() == "gemini":
-                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=get_user_information())
+                                answer = gemini_answer_question(aiClient, label_org, options=None, question_type="textarea", job_description=job_description, about_company=None, user_information_all=user_info_with_letter)
                             else:
                                 randomly_answered_questions.add((label_org, "textarea"))
                                 answer = ""
@@ -1425,7 +1442,6 @@ def dismiss_confirmation_overlay() -> bool:
     try:
         overlay = driver.find_element(By.XPATH, '//div[contains(@class,"artdeco-modal-overlay--layer-confirmation")]')
         if overlay.is_displayed():
-            # Try clicking "Go back" / "Continuar candidatura" to stay in the form
             for btn_text in ["Go back", "Voltar", "Continuar candidatura", "Continue applying", "Não", "Cancel"]:
                 try:
                     btn = overlay.find_element(By.XPATH, f'.//button[contains(normalize-space(.),"{btn_text}")]')
@@ -1433,13 +1449,13 @@ def dismiss_confirmation_overlay() -> bool:
                     print_lg(f"[OVERLAY] Dismissed confirmation overlay via '{btn_text}'")
                     buffer(1)
                     return True
-                except: pass
-            # Fallback: press Escape
+                except NoSuchElementException: pass
             actions.send_keys(Keys.ESCAPE).perform()
             print_lg("[OVERLAY] Dismissed confirmation overlay via ESC")
             buffer(1)
             return True
-    except: pass
+    except NoSuchElementException: pass
+    except Exception as e: print_lg(f"[OVERLAY] Erro ao dispensar overlay: {e}")
     return False
 
 
@@ -1930,4 +1946,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    _pause_thread.start()
     main()
