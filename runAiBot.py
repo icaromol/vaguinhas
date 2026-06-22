@@ -794,7 +794,7 @@ def answer_common_questions(label: str, answer: str) -> str:
         answer = "Equity."
     # CPF
     elif 'cpf' in label:
-        answer = "***CPF_REMOVIDO***"
+        answer = cpf
     # Employer / location
     elif 'current company' in label or 'empresa atual' in label or 'empregador atual' in label: answer = recent_employer
     elif 'current location' in label or 'localização atual' in label or 'onde você mora' in label or 'que cidade reside' in label or 'cidade que reside' in label: answer = current_city
